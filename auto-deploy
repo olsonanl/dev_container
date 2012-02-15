@@ -1,0 +1,75 @@
+
+use Config::Simple;
+use Data::Dumper;
+use strict;
+
+@ARGV == 1 or die "Usage: $0 deploy.cfg\n";
+
+my $cfg_file = shift;
+
+my $cfg = Config::Simple->new();
+$cfg->read($cfg_file);
+
+my @deploy_services = $cfg->param('deploy-service');
+my @deploy_clients  = $cfg->param('deploy-client');
+
+my @default_settings = make_settings($cfg, 'default');
+
+chmod(0400, "id_rsa");
+
+for my $service (@deploy_services, @deploy_clients)
+{
+    if (-d $service)
+    {
+	warn "$service is already checked out\n";
+	next;
+    }
+    my $gitfile = "$service.git";
+    my @cmd = ('ssh-agent', 'bash', '-c', "ssh-add id_rsa; cd modules; git clone kbase\@git.kbase.us:/$gitfile $service");
+    print Dumper(\@cmd);
+    my $rc = system(@cmd);
+    if ($rc != 0)
+    {
+	die "failed with rc=$rc: @cmd\n";
+    }
+}
+
+for my $service (@deploy_services)
+{
+    print "$service\n";
+    my @settings = make_settings($cfg, $service);
+    my @cmd = ("make", "-C", "modules/$service", "deploy-service", @default_settings, @settings);
+    print Dumper(\@cmd);
+    my $rc = system(@cmd);
+    if ($rc != 0)
+    {
+	die "failed with rc=$rc: @cmd\n";
+    }
+}
+
+for my $service (@deploy_clients)
+{
+    print "$service\n";
+    my @settings = make_settings($cfg, $service);
+    my @cmd = ("make", "-C", "modules/$service", "deploy-client", @default_settings, @settings);
+    print Dumper(\@cmd);
+    my $rc = system(@cmd);
+    if ($rc != 0)
+    {
+	die "failed with rc=$rc: @cmd\n";
+    }
+}
+
+sub make_settings
+{
+    my($cfg, $service) = @_;
+    my @out;
+    my $blk = $cfg->get_block($service);
+    while (my($n, $val) = each %$blk)
+    {
+	my $var = uc($n);
+	$var =~ s/-/_/g;
+	push(@out, join("=", $var, $val));
+    }
+    return @out;
+}
