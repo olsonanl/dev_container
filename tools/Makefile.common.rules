@@ -1,0 +1,26 @@
+deploy-dir-service:
+	if [ ! -d $(SERVICE_DIR) ] ; then mkdir $(SERVICE_DIR) ; fi
+	if [ "$(SERVICE_SUBDIRS)" != "" ] ; then \
+		for dir in $(SERVICE_SUBDIRS) ; do \
+		    	if [ ! -d $(SERVICE_DIR)/$$dir ] ; then mkdir -p $(SERVICE_DIR)/$dir ; fi \
+		done;  \
+	fi
+
+deploy-scripts:
+	export KB_TOP=$(TARGET); \
+	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
+	export KB_PERL_PATH=$(TARGET)/lib bash ; \
+	for src in $(SRC_PERL) ; do \
+		basefile=`basename $$src`; \
+		base=`basename $$src .pl`; \
+		echo install $$src $$base ; \
+		cp $$src $(TARGET)/plbin ; \
+		$(WRAP_PERL_SCRIPT) "$(TARGET)/plbin/$$basefile" $(TARGET)/bin/$$base ; \
+	done 
+
+deploy-libs:
+	rsync -arv lib/. $(TARGET)/lib/.
+
+$(BIN_DIR)/%: scripts/%.pl 
+	$(WRAP_PERL_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
+

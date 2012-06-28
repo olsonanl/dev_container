@@ -1,3 +1,18 @@
 BIN_DIR = $(TOP_DIR)/bin
 TOOLS_DIR = $(TOP_DIR)/tools
 CURRENT_DIR = $(notdir $(shell pwd))
+
+WRAP_PERL_TOOL = wrap_perl
+WRAP_PERL_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_PERL_TOOL).sh
+
+SRC_PERL = $(wildcard scripts/*.pl)
+BIN_PERL = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_PERL))))
+
+DEPLOY_PERL = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PERL))))
+
+SERVICE_DIR = $(TARGET)/services/$(SERVICE)
+
+SERVICE_SUBDIRS = webroot
+
+TPAGE = $(DEPLOY_RUNTIME)/bin/tpage
+
