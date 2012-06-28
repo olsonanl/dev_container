@@ -8,6 +8,9 @@ MODULES = $(notdir $(MODULE_DIRS))
 TARGET = /kb/deployment
 DEPLOY_RUNTIME = /kb/runtime
 
+WRAP_TOOL = wrap_perl
+WRAP_SCRIPT = $(TOOLS_DIR)/$(WRAP_TOOL).sh
+
 all: build_modules
 
 what:
