@@ -14,5 +14,5 @@ SERVICE_DIR = $(TARGET)/services/$(SERVICE)
 
 SERVICE_SUBDIRS = webroot
 
-TPAGE = $(DEPLOY_RUNTIME)/bin/tpage
+TPAGE = $(DEPLOY_RUNTIME)/bin/perl $(DEPLOY_RUNTIME)/bin/tpage
 
