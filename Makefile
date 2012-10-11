@@ -54,3 +54,6 @@ build_modules:
 		fi \
 	done
 
+realclean:
+	-rm -rf $(TARGET)
+	-rm -rf modules/*
