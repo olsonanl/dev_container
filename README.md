@@ -12,8 +12,8 @@ Usage
 
 0. Clone this repository onto your development machine:
 
-    $ git clone kbase@git.kbase.us:dev_container.git
-    $ cd dev_container
+        $ git clone kbase@git.kbase.us:dev_container.git
+        $ cd dev_container
 
 1. The "deployment directory" needs to be a directory where you
 have permissions to write. By default, this is a directory called
@@ -21,30 +21,29 @@ have permissions to write. By default, this is a directory called
 directory, then you may skip this step.  To change the directory, 
 open the "Makefile" and replace:
 
-    TARGET = /kb/deployment
-
-With the path to where you would like to deploy.
+        TARGET = /kb/deployment
+with the path to where you would like to deploy.
 
 2. Run the *bootstrap* script with the path to a "runtime directory"
 as the first argument. 
 
-    $ ./bootstrap /kb/runtime
+        $ ./bootstrap /kb/runtime
 
 3. Source the *user-env.sh* script in the "development directory".
 This file is created during the bootstrap script in step 2.
 
-    $ source user-env.sh
+        $ source user-env.sh
 
 4.	Option step if no modules have been cloned into the modules 
 sub directory. This will create directories and files in the deployment
 directory for every module.
 
-	$ make deploy
+        $ make deploy
 
 5. Clone "module repositories" into the modules directory:
 
-    $ cd modules
-    $ git clone kbase@git.kbase.us:idserver.git
+        $ cd modules
+        $ git clone kbase@git.kbase.us:idserver.git
 
 6. Do development work in a module.
 
