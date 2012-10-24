@@ -43,6 +43,7 @@ deploy:
 	echo "export PATH=$$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
 	echo "export KB_PERL_PATH=$$q$(TARGET)/lib$$q" >> $$dest; \
 	echo "export PERL5LIB=\$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; 
+	echo "export PYTHONPATH=$$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest;
 
 	dest=$(TARGET)/user-env.csh; \
 	q='"'; \
@@ -51,6 +52,7 @@ deploy:
 	echo "setenv PATH $$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
 	echo "setenv KB_PERL_PATH $$q$(TARGET)/lib$$q" >> $$dest; \
 	echo "setenv PERL5LIB \$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; 
+	echo "setenv PYTHONPATH $$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest;
 
 build_modules:
 	# this is called by the default target (make with no target provided
