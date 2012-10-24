@@ -36,8 +36,8 @@ deploy:
 	echo "export KB_RUNTIME=$$q$(DEPLOY_RUNTIME)$$q" >> $$dest; \
 	echo "export PATH=$$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
 	echo "export KB_PERL_PATH=$$q$(TARGET)/lib$$q" >> $$dest; \
-	echo "export PERL5LIB=\$$KB_PERL_PATH" >> $$dest; 
-	echo "export PYTHONPATH=\$$KB_PERL_PATH:\$$PYTHONPATH" >> $$dest;
+	echo "export PERL5LIB=\$$KB_PERL_PATH" >> $$dest; \
+	echo "export PYTHONPATH=$$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest;
 
 	dest=$(TARGET)/user-env.csh; \
 	q='"'; \
@@ -45,8 +45,8 @@ deploy:
 	echo "setenv KB_RUNTIME $$q$(DEPLOY_RUNTIME)$$q" >> $$dest; \
 	echo "setenv PATH $$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
 	echo "setenv KB_PERL_PATH $$q$(TARGET)/lib$$q" >> $$dest; \
-	echo "setenv PERL5LIB \$$KB_PERL_PATH" >> $$dest; 
-	echo "setenv PYTHONPATH \$$KB_PERL_PATH:\$$PYTHONPATH" >> $$dest; 
+	echo "setenv PERL5LIB \$$KB_PERL_PATH" >> $$dest; \
+	echo "setenv PYTHONPATH $$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest;
 
 build_modules:
 	if [ ! -d bin ] ; then mkdir bin ; fi
