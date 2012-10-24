@@ -37,6 +37,7 @@ deploy:
 	echo "export PATH=$$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
 	echo "export KB_PERL_PATH=$$q$(TARGET)/lib$$q" >> $$dest; \
 	echo "export PERL5LIB=\$$KB_PERL_PATH" >> $$dest; 
+	echo "export PYTHONPATH=\$$KB_PERL_PATH:\$$PYTHONPATH" >> $$dest;
 
 	dest=$(TARGET)/user-env.csh; \
 	q='"'; \
@@ -45,6 +46,7 @@ deploy:
 	echo "setenv PATH $$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
 	echo "setenv KB_PERL_PATH $$q$(TARGET)/lib$$q" >> $$dest; \
 	echo "setenv PERL5LIB \$$KB_PERL_PATH" >> $$dest; 
+	echo "setenv PYTHONPATH \$$KB_PERL_PATH:\$$PYTHONPATH" >> $$dest; 
 
 build_modules:
 	if [ ! -d bin ] ; then mkdir bin ; fi
