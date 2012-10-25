@@ -5,8 +5,9 @@ MODULES = $(notdir $(MODULE_DIRS))
 #
 # Default deplyment target.
 #
-TARGET = /kb/deployment
-DEPLOY_RUNTIME = /kb/runtime
+# TARGET = /kb/deployment
+TARGET = /Volumes/KBase/KBase.app/deployment
+DEPLOY_RUNTIME = /Volumes/KBase/KBase.app/runtime
 
 WRAP_TOOL = wrap_perl
 WRAP_SCRIPT = $(TOOLS_DIR)/$(WRAP_TOOL).sh
