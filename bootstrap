@@ -103,11 +103,20 @@ done
 
 
 cat > $top_dir/user-env.sh <<EOF
-#!/bin/sh
 export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
 export PATH=\$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH
 export PERL5LIB=\$KB_PERL_PATH
+export PYTHONPATH=\$KB_PERL_PATH:\$PYTHONPATH
+EOF
+
+cat > $top_dir/user-env.csh <<EOF
+setenv KB_TOP $top_dir
+setenv KB_RUNTIME $rt_dir
+setenv KB_PERL_PATH $perl_lib
+setenv PATH \$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH
+setenv PERL5LIB \$KB_PERL_PATH
+setenv PYTHONPATH \$KB_PERL_PATH:\$PYTHONPATH
 EOF
 
