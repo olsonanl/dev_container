@@ -66,6 +66,16 @@ build_modules:
 		fi \
 	done
 
+test:
+	# foreach module in modules, call make test on that module
+	export KB_DEPLOYMENT  = $(TARGET); \
+	export DEPLOY_RUNTIME = $(DEPLOY_RUNTIME); \
+	for m in $(MODULE_DIRS); do \
+		if [ -d $$m ] ; then \
+			(cd $$m; make test ) ; \
+		fi \
+	done
+
 clean:
 	rm -rf $(TARGET)
 
