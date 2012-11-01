@@ -61,6 +61,9 @@ build_modules:
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
 			(cd $$m; make ) ; \
+			if [ $$? -ne 0 ] ; then \
+				exit 1 ; \
+			fi \
 		fi \
 	done
 
@@ -68,7 +71,10 @@ test:
 	# foreach module in modules, call make test on that module
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
-			(cd $$m; make test ) ; \
+			(cd $$m; make test DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ) ; \
+			if [ $$? -ne 0 ] ; then \
+				exit 1 ; \
+			fi \
 		fi \
 	done
 
