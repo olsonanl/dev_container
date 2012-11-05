@@ -38,14 +38,12 @@ deploy:
 
 	dest=$(TARGET)/user-env.sh; \
 	q='"'; \
-	help_message="\"Welcome to the KBase interactive shell. Please visit http://kbase.us/developer-zone/ for documentation.\""; \
 	echo "export KB_TOP=$$q$(TARGET)$$q" > $$dest; \
 	echo "export KB_RUNTIME=$$q$(DEPLOY_RUNTIME)$$q" >> $$dest; \
 	echo "export PATH=$$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
 	echo "export KB_PERL_PATH=$$q$(TARGET)/lib$$q" >> $$dest; \
 	echo "export PERL5LIB=\$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; \
 	echo "export PYTHONPATH=$$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest; \
-	echo "echo $$help_message" >> $$dest;
 
 	# user-env.csh is the same as user-env.sh except csh uses setenv instead of export
 	dest=$(TARGET)/user-env.sh; \
