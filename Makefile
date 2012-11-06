@@ -5,7 +5,7 @@ MODULES = $(notdir $(MODULE_DIRS))
 #
 # Default deplyment target.
 #
-TARGET = /kb/KBase_test/deployment
+TARGET = /kb/deployment
 DEPLOY_RUNTIME = /kb/runtime
 
 WRAP_TOOL = wrap_perl
