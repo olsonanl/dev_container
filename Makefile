@@ -5,7 +5,7 @@ MODULES = $(notdir $(MODULE_DIRS))
 #
 # Default deplyment target.
 #
-TARGET = /kb/deployment
+TARGET = /kb/KBase_test/deployment
 DEPLOY_RUNTIME = /kb/runtime
 
 WRAP_TOOL = wrap_perl
@@ -66,7 +66,7 @@ test:
 	# foreach module in modules, call make test on that module
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
-			(cd $$m; make test ) ; \
+			(cd $$m; make test TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ) ; \
 		fi \
 	done
 
