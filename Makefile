@@ -82,3 +82,6 @@ clean:
 realclean:
 	-rm -rf $(TARGET)
 	-rm -rf modules/*
+	-rm -rf bin
+	-rm runtime
+	-rm user-env.*
