@@ -83,9 +83,9 @@ if [ ! -x $rt_dir/java/bin/javac ] ; then
     fail "Runtime directory $rt_dir does not contain an executable javac"
 fi
 
-if [ ! -x $rt_dir/glassfish3/bin/asadmin ] ; then
-    fail "Runtime directory $rt_dir does not contain an executable asadmin"
-fi
+#if [ ! -x $rt_dir/glassfish3/bin/asadmin ] ; then
+#    fail "Runtime directory $rt_dir does not contain an executable asadmin"
+#fi
 
 perl_lib=""
 for moddir in modules/* ; do
