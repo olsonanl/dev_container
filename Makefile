@@ -56,8 +56,8 @@ deploy:
 build_modules:
 	# this is called by the default target (make with no target provided)
 	# the modules will be deployed in the dev_container
-	# make the necessary directoris
-	# loop over each module and call it's make file with no target (default target)
+	# make the necessary directories
+	# loop over each module and call its make with no target (default target)
 	if [ ! -d bin ] ; then mkdir bin ; fi
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
