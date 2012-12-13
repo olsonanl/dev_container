@@ -14,7 +14,7 @@ what:
 	@echo dirs $(MODULE_DIRS)
 	@echo modules $(MODULES)
 
-deploy:
+deploy: deploy-user-env
 	# make the necessary deployment directories
 	# loop over each module and call its make deploy
 	# create a user-env.sh and put it in the deployment
@@ -30,8 +30,36 @@ deploy:
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
 			(cd $$m; make deploy TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
+			if [ $$? -ne 0 ] ; then \
+				exit 1 ; \
+			fi  \
 		fi \
 	done
+
+deploy-all: deploy-user-env
+	# make the necessary deployment directories
+	# loop over each module and call its make deploy
+	# create a user-env.sh and put it in the deployment
+	# location (TARGET)
+
+
+	-mkdir $(TARGET)
+	-mkdir $(TARGET)/bin
+	-mkdir $(TARGET)/lib
+	-mkdir $(TARGET)/plbin
+	-mkdir $(TARGET)/services
+
+	for m in $(MODULE_DIRS); do \
+		if [ -d $$m ] ; then \
+			(cd $$m; make deploy-all TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
+			if [ $$? -ne 0 ] ; then \
+				exit 1 ; \
+			fi  \
+		fi \
+	done
+
+deploy-user-env:
+	-mkdir $(TARGET)
 
 	dest=$(TARGET)/user-env.sh; \
 	q='"'; \
@@ -55,8 +83,8 @@ deploy:
 build_modules:
 	# this is called by the default target (make with no target provided)
 	# the modules will be deployed in the dev_container
-	# make the necessary directoris
-	# loop over each module and call it's make file with no target (default target)
+	# make the necessary directories
+	# loop over each module and call its make with no target (default target)
 	if [ ! -d bin ] ; then mkdir bin ; fi
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \

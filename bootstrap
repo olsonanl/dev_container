@@ -81,6 +81,14 @@ if [ ! -h $top_dir/runtime ] ; then
     ln -s $rt_dir $top_dir/runtime
 fi
 
+if [ ! -x $rt_dir/java/bin/javac ] ; then
+    fail "Runtime directory $rt_dir does not contain an executable javac"
+fi
+
+#if [ ! -x $rt_dir/glassfish3/bin/asadmin ] ; then
+#    fail "Runtime directory $rt_dir does not contain an executable asadmin"
+#fi
+
 perl_lib=""
 for moddir in modules/* ; do
     p=$top_dir/$moddir/lib
@@ -117,9 +125,11 @@ export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
 export KB_PYTHON_PATH=$python_lib
-export PATH=\$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH
+export PATH=\$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin:\$KB_RUNTIME/java/bin:\$PATH
 export PERL5LIB=\$KB_PERL_PATH
 export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
+export JAVA_HOME=\$KB_RUNTIME/java
+export GLASSFISH_HOME=\$KB_RUNTIME/glassfish3
 EOF
 
 cat > $top_dir/user-env.csh <<EOF
@@ -127,8 +137,10 @@ setenv KB_TOP $top_dir
 setenv KB_RUNTIME $rt_dir
 setenv KB_PERL_PATH $perl_lib
 setenv KB_PYTHON_PATH $python_lib
-setenv PATH \$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH
+setenv PATH \$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin:\$KB_RUNTIME/java/bin:\$PATH
 setenv PERL5LIB \$KB_PERL_PATH
 setenv PYTHONPATH \$KB_PYTHON_PATH:\$PYTHONPATH
+setenv JAVA_HOME \$KB_RUNTIME/java
+setenv GLASSFISH_HOME \$KB_RUNTIME/glassfish3
 EOF
 
