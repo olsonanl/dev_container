@@ -26,6 +26,7 @@ wrap_perl () {
 export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
+export KB_PYTHON_PATH=$python_lib
 $rt_dir/bin/perl $top_dir/$src "\$@"
 EOF
     chmod +x $dst
@@ -39,6 +40,7 @@ wrap_sh () {
 export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
+export KB_PYTHON_PATH=$python_lib
 bash $top_dir/$src "\$@"
 EOF
     chmod +x $dst
@@ -87,6 +89,14 @@ for moddir in modules/* ; do
     fi
 done
 
+python_lib=""
+for moddir in modules/* ; do
+    p=$top_dir/$moddir/lib
+    if [ -d $p ] ; then
+	if [ "$python_lib" = "" ] ; then python_lib=$p ; else python_lib="$python_lib:$p" ; fi
+    fi
+done
+
 for script in tools/*.pl ; do
     if [ -f $script ] ; then
 	base=`basename $script .pl`
@@ -106,17 +116,19 @@ cat > $top_dir/user-env.sh <<EOF
 export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
+export KB_PYTHON_PATH=$python_lib
 export PATH=\$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH
 export PERL5LIB=\$KB_PERL_PATH
-export PYTHONPATH=\$KB_PERL_PATH:\$PYTHONPATH
+export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
 EOF
 
 cat > $top_dir/user-env.csh <<EOF
 setenv KB_TOP $top_dir
 setenv KB_RUNTIME $rt_dir
 setenv KB_PERL_PATH $perl_lib
+setenv KB_PYTHON_PATH $python_lib
 setenv PATH \$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH
 setenv PERL5LIB \$KB_PERL_PATH
-setenv PYTHONPATH \$KB_PERL_PATH:\$PYTHONPATH
+setenv PYTHONPATH \$KB_PYTHON_PATH:\$PYTHONPATH
 EOF
 
