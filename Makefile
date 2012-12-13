@@ -36,6 +36,10 @@ deploy:
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
 			fi \
+			(cd $$m; make deploy-all TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
+                        if [ $$? -ne 0 ] ; then \
+                                exit 1 ; \
+                        fi \
 		fi \
 	done
 
