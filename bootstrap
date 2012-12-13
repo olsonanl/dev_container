@@ -109,6 +109,7 @@ export KB_PERL_PATH=$perl_lib
 export PATH=\$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH
 export PERL5LIB=\$KB_PERL_PATH
 export PYTHONPATH=\$KB_PERL_PATH:\$PYTHONPATH
+hash -r
 EOF
 
 cat > $top_dir/user-env.csh <<EOF
@@ -118,5 +119,6 @@ setenv KB_PERL_PATH $perl_lib
 setenv PATH \$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH
 setenv PERL5LIB \$KB_PERL_PATH
 setenv PYTHONPATH \$KB_PERL_PATH:\$PYTHONPATH
+rehash
 EOF
 
