@@ -35,13 +35,17 @@ deploy:
 			(cd $$m; make deploy TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
-			fi \
-			(cd $$m; make deploy-all TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
-                        if [ $$? -ne 0 ] ; then \
-                                exit 1 ; \
-                        fi \
 		fi \
 	done
+
+        for m in $(MODULE_DIRS); do \
+                if [ -d $$m ] ; then \
+                        (cd $$m; make deploy-all TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
+                        if [ $$? -ne 0 ] ; then \
+                                exit 1 ; \
+                fi \
+        done
+
 
 	dest=$(TARGET)/user-env.sh; \
 	q='"'; \
