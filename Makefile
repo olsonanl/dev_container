@@ -1,7 +1,10 @@
+TOP_DIR = $(KB_TOP)
+include tools/Makefile.common
 
-MODULE_DIRS = $(wildcard modules/*)
-MODULES = $(notdir $(MODULE_DIRS))
-
+#MODULE_DIRS = $(wildcard modules/*)
+#MODULES = $(notdir $(MODULE_DIRS))
+MODULES = $(shell $(TOOLS_DIR)/module-order modules)
+MODULE_DIRS = $(foreach mod,$(MODULES),modules/$(mod))
 #
 # Default deplyment target.
 #
@@ -17,13 +20,11 @@ what:
 	@echo dirs $(MODULE_DIRS)
 	@echo modules $(MODULES)
 
+# make the necessary deployment directories
+# loop over each module and call its make deploy
+# create a user-env.sh and put it in the deployment
+# location (TARGET)
 deploy:
-	# make the necessary deployment directories
-	# loop over each module and call its make deploy
-	# create a user-env.sh and put it in the deployment
-	# location (TARGET)
-
-
 	-mkdir $(TARGET)
 	-mkdir $(TARGET)/bin
 	-mkdir $(TARGET)/lib
@@ -53,11 +54,11 @@ deploy:
 	dest2=$(TARGET)/user-env.csh; \
 	cat $$dest | sed "s/export/setenv/" > $$dest2;
 
+# this is called by the default target (make with no target provided)
+# the modules will be deployed in the dev_container
+# make the necessary directoris
+# loop over each module and call its make file with no target (default target)
 build_modules:
-	# this is called by the default target (make with no target provided)
-	# the modules will be deployed in the dev_container
-	# make the necessary directoris
-	# loop over each module and call it's make file with no target (default target)
 	if [ ! -d bin ] ; then mkdir bin ; fi
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \

@@ -21,6 +21,13 @@ deploy-scripts:
 deploy-libs:
 	rsync -arv lib/. $(TARGET)/lib/.
 
-$(BIN_DIR)/%: scripts/%.pl 
+#
+# We depend on the toplevel user-env so that a re-bootstrap
+# will cause the scripts to be rebuilt. This eliminates a class
+# of non-obvious errors where the perl/python library path
+# in the wrapped script don't have additional libraries that were
+# added.
+#
+$(BIN_DIR)/%: scripts/%.pl $(TOP_DIR)/user-env.sh
 	$(WRAP_PERL_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
 
