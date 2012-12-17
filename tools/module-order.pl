@@ -2,7 +2,13 @@ use Data::Dumper;
 use File::Basename;
 use strict;
 use Graph;
-use Sort::Topological qw(toposort);
+
+our $have_topo = 0;
+eval {
+	require Sort::Topological;
+	Sort::Topological->import('toposort');
+	$have_topo = 1;
+};
 use List::MoreUtils 'part';
 
 #
@@ -64,7 +70,15 @@ for my $mod (@mods)
     
 }
 
-my @sorted = toposort(\&children, \@mods);
+my @sorted;
+if ($have_topo)
+{
+    @sorted = toposort(\&children, \@mods);
+}
+else
+{
+    @sorted = @mods;
+}
 
 #
 # If there is an entry for the type compiler and kb_seed, bubble them up to the
@@ -73,5 +87,8 @@ my @sorted = toposort(\&children, \@mods);
 
 my($typecomp_ar, $kb_seed_ar, $rest) = part {
 	$_ eq 'typecomp' ? 0 : ( $_ eq 'kb_seed' ? 1 : 2); } @sorted;
+$typecomp_ar ||= [];
+$kb_seed_ar ||= [];
+$rest ||= [];
 @sorted = (@$typecomp_ar, @$kb_seed_ar, @$rest);
 print "$_\n" foreach @sorted;
