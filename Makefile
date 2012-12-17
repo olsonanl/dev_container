@@ -17,18 +17,21 @@ what:
 	@echo dirs $(MODULE_DIRS)
 	@echo modules $(MODULES)
 
-# make the necessary deployment directories
-# loop over each module and call its make deploy
-# create a user-env.sh and put it in the deployment
-# location (TARGET)
+deploy-setup: deploy-dirs deploy-user-env
 
-deploy: deploy-user-env
-
+deploy-dirs:
 	-mkdir $(TARGET)
 	-mkdir $(TARGET)/bin
 	-mkdir $(TARGET)/lib
 	-mkdir $(TARGET)/plbin $(TARGET)/pybin
 	-mkdir $(TARGET)/services
+
+# make the necessary deployment directories
+# loop over each module and call its make deploy
+# create a user-env.sh and put it in the deployment
+# location (TARGET)
+
+deploy: deploy-setup
 
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
@@ -44,13 +47,7 @@ deploy: deploy-user-env
 # create a user-env.sh and put it in the deployment
 # location (TARGET)
 
-deploy-all: deploy-user-env
-
-	-mkdir $(TARGET)
-	-mkdir $(TARGET)/bin
-	-mkdir $(TARGET)/lib
-	-mkdir $(TARGET)/plbin
-	-mkdir $(TARGET)/services
+deploy-all: deploy-setup
 
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
