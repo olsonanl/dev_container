@@ -10,22 +10,57 @@ my $cfg_file = shift;
 my $cfg = Config::Simple->new();
 $cfg->read($cfg_file);
 
-my @deploy_services = $cfg->param('deploy-service');
+my $target = $cfg->param('target');
+my $runtime = $cfg->param('deploy-runtime');
+
+my $deployment_config_name = "deployment.cfg";
+
+my @deploy_servers = $cfg->param('deploy-server');
 my @deploy_clients  = $cfg->param('deploy-client');
 
 my @default_settings = make_settings($cfg, 'default');
 
 chmod(0400, "id_rsa");
 
-for my $service (@deploy_services, @deploy_clients)
+#
+# Write default environment information to a file in the
+# dev container for the use of the service startup
+# templates.
+#
+
+my %vars = (kb_top => $target,
+        kb_runtime => $runtime,
+        );
+open(F, ">", "common-envars.tt") or die "Cannot write common-envars.tt: $!";
+while (my($var, $val) = each %vars)
 {
-    if (-d $service)
+    print F "[% $var = '$val' %]\n";
+}
+print F <<END;
+[% MACRO standard_envars(kb_service_name) BLOCK %]
+export KB_TOP="[% kb_top %]"
+export KB_RUNTIME="[% kb_runtime %]"
+export KB_DEPLOYMENT_CONFIG="[% kb_top %]/$deployment_config_name"
+export PATH="\$KB_TOP/bin:\$KB_RUNTIME/bin:\$PATH"
+export PERL5LIB=\$KB_TOP/lib
+[% IF kb_service_name != "" %]
+export KB_SERVICE_DIR="\$KB_TOP/services/[% kb_service_name %]"
+export KB_SERVICE_NAME="[% kb_service_name %]"
+[% END %]
+[% END %]
+END
+
+close(F);
+
+for my $module (@deploy_servers, @deploy_clients)
+{
+    if (-d $module)
     {
-	warn "$service is already checked out\n";
+	warn "$module is already checked out\n";
 	next;
     }
-    my $gitfile = "$service.git";
-    my @cmd = ('ssh-agent', 'bash', '-c', "ssh-add id_rsa; cd modules; git clone kbase\@git.kbase.us:/$gitfile $service");
+    my $gitfile = "$module.git";
+    my @cmd = ('ssh-agent', 'bash', '-c', "ssh-add id_rsa; cd modules; git clone kbase\@git.kbase.us:/$gitfile $module");
     print Dumper(\@cmd);
     my $rc = system(@cmd);
     if ($rc != 0)
@@ -34,11 +69,20 @@ for my $service (@deploy_services, @deploy_clients)
     }
 }
 
-for my $service (@deploy_services)
+my @cmd = ("make", "deploy-setup", @default_settings);
+my $rc = system(@cmd);
+if ($rc != 0)
 {
-    print "$service\n";
-    my @settings = make_settings($cfg, $service);
-    my @cmd = ("make", "-C", "modules/$service", "deploy-service", @default_settings, @settings);
+    die "failed with rc=$rc: @cmd\n";
+}
+
+for my $server (@deploy_servers)
+{
+
+
+    print "$server\n";
+    my @settings = make_settings($cfg, $server);
+    my @cmd = ("make", "-C", "modules/$server", "deploy-server", @default_settings, @settings);
     print Dumper(\@cmd);
     my $rc = system(@cmd);
     if ($rc != 0)
@@ -47,11 +91,11 @@ for my $service (@deploy_services)
     }
 }
 
-for my $service (@deploy_clients)
+for my $client (@deploy_clients)
 {
-    print "$service\n";
-    my @settings = make_settings($cfg, $service);
-    my @cmd = ("make", "-C", "modules/$service", "deploy-client", @default_settings, @settings);
+    print "$client\n";
+    my @settings = make_settings($cfg, $client);
+    my @cmd = ("make", "-C", "modules/$client", "deploy-client", @default_settings, @settings);
     print Dumper(\@cmd);
     my $rc = system(@cmd);
     if ($rc != 0)
@@ -59,12 +103,18 @@ for my $service (@deploy_clients)
 	die "failed with rc=$rc: @cmd\n";
     }
 }
+
+#
+# Copy our deployment config to the target directory.
+#
+
+copy($cfg_file, "$target/$deployment_config_name") or die "Cannot copy $cfg_file to $target/$deployment_config_name";
 
 sub make_settings
 {
-    my($cfg, $service) = @_;
+    my($cfg, $module) = @_;
     my @out;
-    my $blk = $cfg->get_block($service);
+    my $blk = $cfg->get_block($module);
     while (my($n, $val) = each %$blk)
     {
 	my $var = uc($n);
