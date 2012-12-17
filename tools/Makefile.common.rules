@@ -48,3 +48,5 @@ $(BIN_DIR)/%: scripts/%.pl $(TOP_DIR)/user-env.sh
 $(BIN_DIR)/%: scripts/%.py
 	$(WRAP_PYTHON_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
 
+%.class: %.java
+	 $(JAVAC) $(JAVAC_FLAGS) $<
