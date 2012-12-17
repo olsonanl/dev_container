@@ -77,33 +77,128 @@ if [ -d $top_dir/runtime ] ; then
     fi
 fi
 
-if [ ! -h $top_dir/runtime ] ; then
-    ln -s $rt_dir $top_dir/runtime
-fi
-
-if [ ! -x $rt_dir/java/bin/javac ] ; then
-    fail "Runtime directory $rt_dir does not contain an executable javac"
-fi
+#if [ ! -x $rt_dir/java/bin/javac ] ; then
+#    fail "Runtime directory $rt_dir does not contain an executable javac"
+#fi
 
 #if [ ! -x $rt_dir/glassfish3/bin/asadmin ] ; then
 #    fail "Runtime directory $rt_dir does not contain an executable asadmin"
 #fi
 
+#
+# Check for the existence of our dependencies.
+#
+missing_deps=""
+for moddir in modules/* ; do
+    if [ -f $moddir/DEPENDENCIES ] ; then
+	mod=`basename $moddir`
+	for dep in `cat $moddir/DEPENDENCIES`; do 
+	    if [ ! -d modules/$dep ] ; then
+		missing_deps="$missing_deps $mod:$dep"
+	    fi
+	done
+    fi
+done
+
+if [ "$missing_deps" != "" ] ; then
+    echo "The following modules were listed as dependencies but were not present in the modules directory:" 1>&2
+    for missing in $missing_deps; do
+	echo $missing | sed -e 's/\(.*\):/   from module \1: /' 1>&2
+    done
+    exit 1
+fi
+
+
+if [ ! -h $top_dir/runtime ] ; then
+    ln -s $rt_dir $top_dir/runtime
+fi
+
+#
+# Construct a CLASSPATH from the runtime's libdir and from the
+# libdirs of the modules we have.
+#
+classpath="\$KB_RUNTIME/lib/*"
+for moddir in modules/* ; do
+    p=$top_dir/$moddir
+    if [ -d $p ] ; then
+	elt="\$KB_TOP/$moddir/dist/lib"
+	classpath="${classpath}:$elt/*"
+    fi
+done
+
+#
+# Configure the appropriate JAVA_HOME.
+#
+# If we come in with a JAVA_HOME set, use that. 
+#
+if [ "$JAVA_HOME" = "" ] ; then
+    if [ -d "$rt_dir/java" ] ; then
+	JAVA_HOME="$rt_dir/java"
+    elif [ -d "/Library/Java/Home" ] ; then
+	# Mac
+	JAVA_HOME="/Library/Java/Home"
+    else 
+	echo "JAVA_HOME not found" 1>&2
+	exit 1
+	#
+	# Try to find javac, and set based on that.
+	#
+    fi
+fi
+
+modlist=""
+modlistc=""
 perl_lib=""
 for moddir in modules/* ; do
     p=$top_dir/$moddir/lib
     if [ -d $p ] ; then
-	if [ "$perl_lib" = "" ] ; then perl_lib=$p ; else perl_lib="$perl_lib:$p" ; fi
+	elt="\$KB_TOP/$moddir/lib"
+	if [ "$perl_lib" = "" ] ; then perl_lib=$elt ; else perl_lib="$perl_lib:$elt" ; fi
+        modname=`basename $moddir`
+        if [ "$modlist" = "" ] ; then modlist=$modname ; else modlist="$modlist $modname" ; fi
+        if [ "$modlistc" = "" ] ; then modlistc=$modname ; else modlistc="$modlistc, $modname" ; fi
     fi
 done
+
+dcfg=$top_dir/bootstrap.cfg
+cat > $dcfg <<EOF
+END
+target = /kb/deployment
+deploy-runtime = $rt_dir
+
+deploy-client = $modlistc
+deploy-server =
+
+END
+
+EOF
+
+for mod in $modlist ; do
+    md=modules/$mod
+    if [ -f "$md/deploy.cfg" ] ; then
+        cat $md/deploy.cfg >> $dcfg
+    else
+        echo "[$mod]" >> $dcfg
+    fi
+    echo "" >> $dcfg
+done
+
+#
+# Construct python path
+#
 
 python_lib=""
 for moddir in modules/* ; do
     p=$top_dir/$moddir/lib
     if [ -d $p ] ; then
-	if [ "$python_lib" = "" ] ; then python_lib=$p ; else python_lib="$python_lib:$p" ; fi
+	elt="\$KB_TOP/$moddir/lib"
+	if [ "$python_lib" = "" ] ; then python_lib=$elt ; else python_lib="$python_lib:$elt" ; fi
     fi
 done
+
+#
+# Wrap scripts.
+#
 
 for script in tools/*.pl ; do
     if [ -f $script ] ; then
@@ -130,6 +225,8 @@ export PERL5LIB=\$KB_PERL_PATH
 export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
 export JAVA_HOME=\$KB_RUNTIME/java
 export GLASSFISH_HOME=\$KB_RUNTIME/glassfish3
+export CLASSPATH=$classpath
+export JAVA_HOME=$JAVA_HOME
 hash -r
 EOF
 
@@ -143,6 +240,8 @@ setenv PERL5LIB \$KB_PERL_PATH
 setenv PYTHONPATH \$KB_PYTHON_PATH:\$PYTHONPATH
 setenv JAVA_HOME \$KB_RUNTIME/java
 setenv GLASSFISH_HOME \$KB_RUNTIME/glassfish3
+setenv CLASSPATH $classpath
+setenv JAVAHOME $JAVA_HOME
 rehash
 EOF
 
