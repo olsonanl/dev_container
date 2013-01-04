@@ -54,7 +54,7 @@ close(F);
 
 for my $module (@deploy_servers, @deploy_clients)
 {
-    if (-d $module)
+    if (-d "modules/$module")
     {
 	warn "$module is already checked out\n";
 	next;

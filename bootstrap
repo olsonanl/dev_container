@@ -117,6 +117,12 @@ fi
 # Construct a CLASSPATH from the runtime's libdir and from the
 # libdirs of the modules we have.
 #
+# There is a subtlety here involving the wildcard path. Ant will not
+# expand wildcards that come in from the classpath, so this classpath
+# is really useless to it. However, since we know the runtime in a dev
+# container is linked to $KB_TOP/runtime, we can hand that to ant as
+# the top of a hierarchy to search for jar files.
+#
 classpath="\$KB_RUNTIME/lib/*"
 for moddir in modules/* ; do
     p=$top_dir/$moddir
@@ -224,7 +230,6 @@ export JAVA_HOME=$JAVA_HOME
 export PATH=\$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin:\$JAVA_HOME/bin:\$PATH
 export PERL5LIB=\$KB_PERL_PATH
 export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
-export JAVA_HOME=\$KB_RUNTIME/java
 export GLASSFISH_HOME=\$KB_RUNTIME/glassfish3
 export CLASSPATH=$classpath
 hash -r
@@ -235,11 +240,10 @@ setenv KB_TOP $top_dir
 setenv KB_RUNTIME $rt_dir
 setenv KB_PERL_PATH $perl_lib
 setenv KB_PYTHON_PATH $python_lib
-setenv JAVAHOME $JAVA_HOME
+setenv JAVA_HOME $JAVA_HOME
 setenv PATH \$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin:\$JAVA_HOME/bin:\$PATH
 setenv PERL5LIB \$KB_PERL_PATH
 setenv PYTHONPATH \$KB_PYTHON_PATH:\$PYTHONPATH
-setenv JAVA_HOME \$KB_RUNTIME/java
 setenv GLASSFISH_HOME \$KB_RUNTIME/glassfish3
 setenv CLASSPATH $classpath
 rehash
