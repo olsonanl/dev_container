@@ -101,10 +101,11 @@ for moddir in modules/* ; do
 done
 
 if [ "$missing_deps" != "" ] ; then
-    echo "The following modules were listed as dependencies but were not present in the modules directory:" 1>&2
+    echo "ERROR: The following modules were listed as dependencies but were not present in the modules directory:" 1>&2
     for missing in $missing_deps; do
-	echo $missing | sed -e 's/\(.*\):/   from module \1: /' 1>&2
+    	echo $missing | sed -e 's/\(.*\):/   from module \1: /' 1>&2
     done
+    echo "Please check these modules out and rerun '$0'"
     exit 1
 fi
 
