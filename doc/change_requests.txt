@@ -34,7 +34,30 @@ CHANGE DATE
 FILES AFFECTED
 COMMENT
 
-DATE		01/16/2012
+DATE		01/16/2013
+CHANGE		Copy everything under the module's lib directory to 
+		the deployment's lib directory as part of the
+		deploy-libs target
+PURPOSE		To allow make deploy to deploy libs
+TYPE		0
+REQUESTOR	Tom
+APPROVED BY	Dan
+APPROVAL DATE	01/16/2013
+CHANGED BY	Tom
+CHANGE DATE	01/16/2013
+FILES AFFECTED	module.Makefile
+COMMENT		Add the command cp -r lib $(TARGET)/ to the deploy-libs 
+		target. I'm not very happy with this as it has the potential
+		to deploy files under the module's lib directory that 
+		shouldn't get deployed. For example:
+
+                  ServiceRegistryImpl.pm.bak-2013-01-16-14-17-01
+                  ServiceRegistryImpl.pm.bak-2013-01-16-14-18-57
+
+		get copied over and are the product of running the type
+		compiler more than once.
+
+DATE		01/16/2013
 CHANGE		Create webroot directory if it doesn't exist in deploy-docs
 PURPOSE		To allow make deploy to deploy-docs
 TYPE		0
