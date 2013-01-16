@@ -195,6 +195,7 @@ deploy-service:
 # how to standardize and automate CLI documentation.
 
 deploy-docs: build-docs
+	-mkdir -p $(TARGET)/services/$(SERVICE_NAME)/webroot/.
 	cp docs/*.html $(TARGET)/services/$(SERVICE_NAME)/webroot/.
 
 # The location of the Client.pm file depends on the --client param
