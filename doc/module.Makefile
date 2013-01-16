@@ -142,7 +142,7 @@ deploy-client: deploy-libs deploy-scripts deploy-docs
 # individual API functions and aggregated sets of API functions.
 
 deploy-libs: build-libs
-	cp -r lib $(TARGET)/
+	rsync --exclude '*.bak*' -arv lib/. $(TARGET)/lib/.
 
 # Deploying scripts needs some special care. They need to run
 # in a certain runtime environment. Users should not have
