@@ -34,6 +34,22 @@ CHANGE DATE
 FILES AFFECTED
 COMMENT
 
+DATE		01/16/2012
+CHANGE		Create webroot directory if it doesn't exist in deploy-docs
+PURPOSE		To allow make deploy to deploy-docs
+TYPE		0
+REQUESTOR	Tom
+APPROVED BY	Dan
+APPROVAL DATE	01/16/2013
+CHANGED BY	Tom
+CHANGE DATE	01/16/2013
+FILES AFFECTED	module.Makefile
+COMMENT		Add -mkdir -p $(TARGET)/services/$(SERVICE_NAME)/webroot
+		to the deploy-docs target. This command the following behaviour.
+		The - tells make to ignore any errors from the mkdir command.
+		This is important in the event that the directory already exists.
+		The -p flag tells mkdir to create any parent directories as needed.
+
 DATE            01/09/2013
 CHANGE          Move module.Makefile from dev_container_tools repository
                 to the dev_container repository's doc directory.
