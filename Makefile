@@ -1,7 +1,10 @@
+TOP_DIR = $(KB_TOP)
+include tools/Makefile.common
 
-MODULE_DIRS = $(wildcard modules/*)
-MODULES = $(notdir $(MODULE_DIRS))
-
+#MODULE_DIRS = $(wildcard modules/*)
+#MODULES = $(notdir $(MODULE_DIRS))
+MODULES = $(shell $(TOOLS_DIR)/module-order modules)
+MODULE_DIRS = $(foreach mod,$(MODULES),modules/$(mod))
 #
 # Default deplyment target.
 #
@@ -9,36 +12,55 @@ MODULES = $(notdir $(MODULE_DIRS))
 TARGET = /Volumes/KBase/KBase.app/deployment
 DEPLOY_RUNTIME = /Volumes/KBase/KBase.app/runtime
 
-WRAP_TOOL = wrap_perl
-WRAP_SCRIPT = $(TOOLS_DIR)/$(WRAP_TOOL).sh
-
 all: build_modules
 
 what:
 	@echo dirs $(MODULE_DIRS)
 	@echo modules $(MODULES)
 
-deploy:
-	# make the necessary deployment directories
-	# loop over each module and call its make deploy
-	# create a user-env.sh and put it in the deployment
-	# location (TARGET)
+deploy-setup: deploy-dirs deploy-user-env
 
-
+deploy-dirs:
 	-mkdir $(TARGET)
 	-mkdir $(TARGET)/bin
 	-mkdir $(TARGET)/lib
-	-mkdir $(TARGET)/plbin
+	-mkdir $(TARGET)/plbin $(TARGET)/pybin
 	-mkdir $(TARGET)/services
+
+# make the necessary deployment directories
+# loop over each module and call its make deploy
+# create a user-env.sh and put it in the deployment
+# location (TARGET)
+
+deploy: deploy-setup
 
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
 			(cd $$m; make deploy TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
-			fi \
+			fi  \
 		fi \
 	done
+
+# make the necessary deployment directories
+# loop over each module and call its make deploy
+# create a user-env.sh and put it in the deployment
+# location (TARGET)
+
+deploy-all: deploy-setup
+
+	for m in $(MODULE_DIRS); do \
+		if [ -d $$m ] ; then \
+			(cd $$m; make deploy-all TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
+			if [ $$? -ne 0 ] ; then \
+				exit 1 ; \
+			fi  \
+		fi \
+	done
+
+deploy-user-env:
+	-mkdir $(TARGET)
 
 	dest=$(TARGET)/user-env.sh; \
 	q='"'; \
@@ -47,18 +69,23 @@ deploy:
 	echo "export PATH=$$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
 	echo "export KB_PERL_PATH=$$q$(TARGET)/lib$$q" >> $$dest; \
 	echo "export PERL5LIB=\$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; \
-	echo "export PYTHONPATH=$$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest; \
+	echo "export PYTHONPATH=$$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest;
 
-	# user-env.csh is the same as user-env.sh except csh uses setenv instead of export
-	dest=$(TARGET)/user-env.sh; \
-	dest2=$(TARGET)/user-env.csh; \
-	cat $$dest | sed "s/export/setenv/" > $$dest2;
+	dest=$(TARGET)/user-env.csh; \
+	q='"'; \
+	echo "setenv KB_TOP $$q$(TARGET)$$q" > $$dest; \
+	echo "setenv KB_RUNTIME $$q$(DEPLOY_RUNTIME)$$q" >> $$dest; \
+	echo "setenv PATH $$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
+	echo "setenv KB_PERL_PATH $$q$(TARGET)/lib$$q" >> $$dest; \
+	echo "setenv PERL5LIB \$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; \
+	echo "setenv PYTHONPATH $$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest;
 
+
+# this is called by the default target (make with no target provided)
+# the modules will be deployed in the dev_container
+# make the necessary directoris
+# loop over each module and call its make file with no target (default target)
 build_modules:
-	# this is called by the default target (make with no target provided)
-	# the modules will be deployed in the dev_container
-	# make the necessary directoris
-	# loop over each module and call it's make file with no target (default target)
 	if [ ! -d bin ] ; then mkdir bin ; fi
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \

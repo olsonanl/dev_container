@@ -6,7 +6,9 @@ deploy-dir-service:
 		done;  \
 	fi
 
-deploy-scripts:
+deploy-scripts: deploy-perl-scripts deploy-python-scripts
+
+deploy-perl-scripts:
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
 	export KB_PERL_PATH=$(TARGET)/lib bash ; \
@@ -18,9 +20,33 @@ deploy-scripts:
 		$(WRAP_PERL_SCRIPT) "$(TARGET)/plbin/$$basefile" $(TARGET)/bin/$$base ; \
 	done 
 
+deploy-python-scripts:
+	export KB_TOP=$(TARGET); \
+	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
+	export KB_PYTHON_PATH=$(TARGET)/lib bash ; \
+	for src in $(SRC_PERL) ; do \
+		basefile=`basename $$src`; \
+		base=`basename $$src .py`; \
+		echo install $$src $$base ; \
+		cp $$src $(TARGET)/pybin ; \
+		$(WRAP_PYTHON_SCRIPT) "$(TARGET)/pybin/$$basefile" $(TARGET)/bin/$$base ; \
+	done 
+
 deploy-libs:
 	rsync -arv lib/. $(TARGET)/lib/.
 
-$(BIN_DIR)/%: scripts/%.pl 
+#
+# We depend on the toplevel user-env so that a re-bootstrap
+# will cause the scripts to be rebuilt. This eliminates a class
+# of non-obvious errors where the perl/python library path
+# in the wrapped script don't have additional libraries that were
+# added.
+#
+$(BIN_DIR)/%: scripts/%.pl $(TOP_DIR)/user-env.sh
 	$(WRAP_PERL_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
 
+$(BIN_DIR)/%: scripts/%.py
+	$(WRAP_PYTHON_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
+
+%.class: %.java
+	 $(JAVAC) $(JAVAC_FLAGS) $<
