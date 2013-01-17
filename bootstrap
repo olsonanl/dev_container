@@ -26,6 +26,7 @@ wrap_perl () {
 export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
+export KB_PYTHON_PATH=$python_lib
 $rt_dir/bin/perl $top_dir/$src "\$@"
 EOF
     chmod +x $dst
@@ -39,6 +40,7 @@ wrap_sh () {
 export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
+export KB_PYTHON_PATH=$python_lib
 bash $top_dir/$src "\$@"
 EOF
     chmod +x $dst
@@ -75,17 +77,135 @@ if [ -d $top_dir/runtime ] ; then
     fi
 fi
 
+#if [ ! -x $rt_dir/java/bin/javac ] ; then
+#    fail "Runtime directory $rt_dir does not contain an executable javac"
+#fi
+
+#if [ ! -x $rt_dir/glassfish3/bin/asadmin ] ; then
+#    fail "Runtime directory $rt_dir does not contain an executable asadmin"
+#fi
+
+#
+# Check for the existence of our dependencies.
+#
+missing_deps=""
+for moddir in modules/* ; do
+    if [ -f $moddir/DEPENDENCIES ] ; then
+	mod=`basename $moddir`
+	for dep in `cat $moddir/DEPENDENCIES`; do 
+	    if [ ! -d modules/$dep ] ; then
+		missing_deps="$missing_deps $mod:$dep"
+	    fi
+	done
+    fi
+done
+
+if [ "$missing_deps" != "" ] ; then
+    echo "ERROR: The following modules were listed as dependencies but were not present in the modules directory:" 1>&2
+    for missing in $missing_deps; do
+    	echo $missing | sed -e 's/\(.*\):/   from module \1: /' 1>&2
+    done
+    echo "Please check these modules out and rerun '$0'"
+    exit 1
+fi
+
+
 if [ ! -h $top_dir/runtime ] ; then
     ln -s $rt_dir $top_dir/runtime
 fi
 
+#
+# Construct a CLASSPATH from the runtime's libdir and from the
+# libdirs of the modules we have.
+#
+# There is a subtlety here involving the wildcard path. Ant will not
+# expand wildcards that come in from the classpath, so this classpath
+# is really useless to it. However, since we know the runtime in a dev
+# container is linked to $KB_TOP/runtime, we can hand that to ant as
+# the top of a hierarchy to search for jar files.
+#
+classpath="\$KB_RUNTIME/lib/*"
+for moddir in modules/* ; do
+    p=$top_dir/$moddir
+    if [ -d $p ] ; then
+	elt="\$KB_TOP/$moddir/dist/lib"
+	classpath="${classpath}:$elt/*"
+    fi
+done
+
+#
+# Configure the appropriate JAVA_HOME.
+#
+# If we come in with a JAVA_HOME set, use that. 
+#
+if [ "$JAVA_HOME" = "" ] ; then
+    if [ -d "$rt_dir/java" ] ; then
+	JAVA_HOME="$rt_dir/java"
+    elif [ -d "/Library/Java/Home" ] ; then
+	# Mac
+	JAVA_HOME="/Library/Java/Home"
+    else 
+	echo "JAVA_HOME not found" 1>&2
+	exit 1
+	#
+	# Try to find javac, and set based on that.
+	#
+    fi
+fi
+
+modlist=""
+modlistc=""
 perl_lib=""
 for moddir in modules/* ; do
     p=$top_dir/$moddir/lib
     if [ -d $p ] ; then
-	if [ "$perl_lib" = "" ] ; then perl_lib=$p ; else perl_lib="$perl_lib:$p" ; fi
+	elt="\$KB_TOP/$moddir/lib"
+	if [ "$perl_lib" = "" ] ; then perl_lib=$elt ; else perl_lib="$perl_lib:$elt" ; fi
+        modname=`basename $moddir`
+        if [ "$modlist" = "" ] ; then modlist=$modname ; else modlist="$modlist $modname" ; fi
+        if [ "$modlistc" = "" ] ; then modlistc=$modname ; else modlistc="$modlistc, $modname" ; fi
     fi
 done
+
+dcfg=$top_dir/bootstrap.cfg
+cat > $dcfg <<EOF
+END
+target = /kb/deployment
+deploy-runtime = $rt_dir
+
+deploy-client = $modlistc
+deploy-server =
+
+END
+
+EOF
+
+for mod in $modlist ; do
+    md=modules/$mod
+    if [ -f "$md/deploy.cfg" ] ; then
+        cat $md/deploy.cfg >> $dcfg
+    else
+        echo "[$mod]" >> $dcfg
+    fi
+    echo "" >> $dcfg
+done
+
+#
+# Construct python path
+#
+
+python_lib=""
+for moddir in modules/* ; do
+    p=$top_dir/$moddir/lib
+    if [ -d $p ] ; then
+	elt="\$KB_TOP/$moddir/lib"
+	if [ "$python_lib" = "" ] ; then python_lib=$elt ; else python_lib="$python_lib:$elt" ; fi
+    fi
+done
+
+#
+# Wrap scripts.
+#
 
 for script in tools/*.pl ; do
     if [ -f $script ] ; then
@@ -106,17 +226,27 @@ cat > $top_dir/user-env.sh <<EOF
 export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
-export PATH=\$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH
+export KB_PYTHON_PATH=$python_lib
+export JAVA_HOME=$JAVA_HOME
+export PATH=\$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin:\$JAVA_HOME/bin:\$PATH
 export PERL5LIB=\$KB_PERL_PATH
-export PYTHONPATH=\$KB_PERL_PATH:\$PYTHONPATH
+export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
+export GLASSFISH_HOME=\$KB_RUNTIME/glassfish3
+export CLASSPATH=$classpath
+hash -r
 EOF
 
 cat > $top_dir/user-env.csh <<EOF
 setenv KB_TOP $top_dir
 setenv KB_RUNTIME $rt_dir
 setenv KB_PERL_PATH $perl_lib
-setenv PATH \$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH
+setenv KB_PYTHON_PATH $python_lib
+setenv JAVA_HOME $JAVA_HOME
+setenv PATH \$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin:\$JAVA_HOME/bin:\$PATH
 setenv PERL5LIB \$KB_PERL_PATH
-setenv PYTHONPATH \$KB_PERL_PATH:\$PYTHONPATH
+setenv PYTHONPATH \$KB_PYTHON_PATH:\$PYTHONPATH
+setenv GLASSFISH_HOME \$KB_RUNTIME/glassfish3
+setenv CLASSPATH $classpath
+rehash
 EOF
 
