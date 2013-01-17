@@ -11,7 +11,7 @@ deploy-scripts: deploy-perl-scripts deploy-python-scripts
 deploy-perl-scripts:
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
-	export KB_PERL_PATH=$(TARGET)/lib bash ; \
+	export KB_PERL_PATH=$(TARGET)/lib ; \
 	for src in $(SRC_PERL) ; do \
 		basefile=`basename $$src`; \
 		base=`basename $$src .pl`; \
@@ -23,8 +23,8 @@ deploy-perl-scripts:
 deploy-python-scripts:
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
-	export KB_PYTHON_PATH=$(TARGET)/lib bash ; \
-	for src in $(SRC_PERL) ; do \
+	export KB_PYTHON_PATH=$(TARGET)/lib ; \
+	for src in $(SRC_PYTHON) ; do \
 		basefile=`basename $$src`; \
 		base=`basename $$src .py`; \
 		echo install $$src $$base ; \
