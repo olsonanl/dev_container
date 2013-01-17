@@ -19,7 +19,7 @@ DEPLOY_PERL = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PERL))))
 WRAP_PYTHON_TOOL = wrap_python
 WRAP_PYTHON_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_PYTHON_TOOL).sh
 
-SRC_PYTHON = $(wildcard scripts/*.pl)
+SRC_PYTHON = $(wildcard scripts/*.py)
 BIN_PYTHON = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_PYTHON))))
 
 DEPLOY_PYTHON = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PYTHON))))
