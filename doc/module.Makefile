@@ -142,6 +142,7 @@ deploy-client: deploy-libs deploy-scripts deploy-docs
 # individual API functions and aggregated sets of API functions.
 
 deploy-libs: build-libs
+	rsync --exclude '*.bak*' -arv lib/. $(TARGET)/lib/.
 
 # Deploying scripts needs some special care. They need to run
 # in a certain runtime environment. Users should not have
@@ -192,6 +193,7 @@ deploy-service:
 # how to standardize and automate CLI documentation.
 
 deploy-docs: build-docs
+	-mkdir -p $(TARGET)/services/$(SERVICE_NAME)/webroot/.
 	cp docs/*.html $(TARGET)/services/$(SERVICE_NAME)/webroot/.
 
 # The location of the Client.pm file depends on the --client param
