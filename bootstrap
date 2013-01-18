@@ -221,6 +221,7 @@ for script in tools/*.sh ; do
     fi
 done
 
+path_str="\$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin:\$JAVA_HOME/bin:\$KB_RUNTIME/thrift/bin:\$PATH"
 
 cat > $top_dir/user-env.sh <<EOF
 export KB_TOP=$top_dir
@@ -228,7 +229,7 @@ export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
 export KB_PYTHON_PATH=$python_lib
 export JAVA_HOME=$JAVA_HOME
-export PATH=\$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin:\$JAVA_HOME/bin:\$PATH
+export PATH=$path_str
 export PERL5LIB=\$KB_PERL_PATH
 export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
 export GLASSFISH_HOME=\$KB_RUNTIME/glassfish3
@@ -242,7 +243,7 @@ setenv KB_RUNTIME $rt_dir
 setenv KB_PERL_PATH $perl_lib
 setenv KB_PYTHON_PATH $python_lib
 setenv JAVA_HOME $JAVA_HOME
-setenv PATH \$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin:\$JAVA_HOME/bin:\$PATH
+setenv PATH $path_str
 setenv PERL5LIB \$KB_PERL_PATH
 setenv PYTHONPATH \$KB_PYTHON_PATH:\$PYTHONPATH
 setenv GLASSFISH_HOME \$KB_RUNTIME/glassfish3
