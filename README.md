@@ -22,6 +22,7 @@ directory, then you may skip this step.  To change the directory,
 open the "Makefile" and replace:
 
         TARGET = /kb/deployment
+
 with the path to where you would like to deploy.
 
 2. Run the *bootstrap* script with the path to a "runtime directory"
