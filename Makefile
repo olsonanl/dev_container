@@ -5,12 +5,12 @@ include tools/Makefile.common
 #MODULES = $(notdir $(MODULE_DIRS))
 MODULES = $(shell $(TOOLS_DIR)/module-order modules)
 MODULE_DIRS = $(foreach mod,$(MODULES),modules/$(mod))
+
 #
 # Default deplyment target. May be overridden to deploy to an alternative location.
 #
-# TARGET = /kb/deployment
-TARGET = /Volumes/KBase/KBase.app/deployment
-DEPLOY_RUNTIME = /Volumes/KBase/KBase.app/runtime
+TARGET = /kb/deployment
+DEPLOY_RUNTIME = /kb/runtime
 
 all: build_modules
 
