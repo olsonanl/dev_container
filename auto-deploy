@@ -93,41 +93,32 @@ for my $server (@deploy_master)
     }
 }
 
-#If master is defined we skip other deploy's and tell the user we are doing so
-
-if (@deploy_master)
+for my $server (@deploy_servers)
 {
-       print "deploy_master is defined -- SKIPPING deploy_servers and deploy_clients";
+
+
+    print "$server\n";
+    my @settings = make_settings($cfg, $server);
+    my @cmd = ("make", "-C", "modules/$server", "deploy-server", @default_settings, @settings);
+    print Dumper(\@cmd);
+    my $rc = system(@cmd);
+    if ($rc != 0)
+    {
+	die "failed with rc=$rc: @cmd\n";
+    }
 }
-else
-{
-  for my $server (@deploy_servers)
-  {
-  
-  
-      print "$server\n";
-      my @settings = make_settings($cfg, $server);
-      my @cmd = ("make", "-C", "modules/$server", "deploy-server", @default_settings, @settings);
-      print Dumper(\@cmd);
-      my $rc = system(@cmd);
-      if ($rc != 0)
-      {
-  	die "failed with rc=$rc: @cmd\n";
-      }
-  }
 
-  for my $client (@deploy_clients)
-  {
-      print "$client\n";
-      my @settings = make_settings($cfg, $client);
-      my @cmd = ("make", "-C", "modules/$client", "deploy-client", @default_settings, @settings);
-      print Dumper(\@cmd);
-      my $rc = system(@cmd);
-      if ($rc != 0)
-      {
-  	die "failed with rc=$rc: @cmd\n";
-      }
-  }
+for my $client (@deploy_clients)
+{
+    print "$client\n";
+    my @settings = make_settings($cfg, $client);
+    my @cmd = ("make", "-C", "modules/$client", "deploy-client", @default_settings, @settings);
+    print Dumper(\@cmd);
+    my $rc = system(@cmd);
+    if ($rc != 0)
+    {
+	die "failed with rc=$rc: @cmd\n";
+    }
 }
 #
 # Copy our deployment config to the target directory.
