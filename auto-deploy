@@ -17,6 +17,7 @@ my $deployment_config_name = "deployment.cfg";
 
 my @deploy_servers = $cfg->param('deploy-server');
 my @deploy_clients  = $cfg->param('deploy-client');
+my @deploy_master  = $cfg->param('deploy-master');
 
 my @default_settings = make_settings($cfg, 'default');
 
@@ -52,7 +53,7 @@ END
 
 close(F);
 
-for my $module (@deploy_servers, @deploy_clients)
+for my $module (@deploy_servers, @deploy_clients, @deploy_master)
 {
     if (-d "modules/$module")
     {
@@ -76,34 +77,58 @@ if ($rc != 0)
     die "failed with rc=$rc: @cmd\n";
 }
 
-for my $server (@deploy_servers)
+
+for my $server (@deploy_master)
 {
 
 
     print "$server\n";
     my @settings = make_settings($cfg, $server);
-    my @cmd = ("make", "-C", "modules/$server", "deploy-server", @default_settings, @settings);
+    my @cmd = ("make", "-C", "modules/$server", "deploy", @default_settings, @settings);
     print Dumper(\@cmd);
     my $rc = system(@cmd);
     if ($rc != 0)
     {
-	die "failed with rc=$rc: @cmd\n";
+        die "failed with rc=$rc: @cmd\n";
     }
 }
 
-for my $client (@deploy_clients)
+#If master is defined we skip other deploy's and tell the user we are doing so
+
+if (@deploy_master)
 {
-    print "$client\n";
-    my @settings = make_settings($cfg, $client);
-    my @cmd = ("make", "-C", "modules/$client", "deploy-client", @default_settings, @settings);
-    print Dumper(\@cmd);
-    my $rc = system(@cmd);
-    if ($rc != 0)
-    {
-	die "failed with rc=$rc: @cmd\n";
-    }
+       print "deploy_master is defined -- SKIPPING deploy_servers and deploy_clients";
 }
+else
+{
+  for my $server (@deploy_servers)
+  {
+  
+  
+      print "$server\n";
+      my @settings = make_settings($cfg, $server);
+      my @cmd = ("make", "-C", "modules/$server", "deploy-server", @default_settings, @settings);
+      print Dumper(\@cmd);
+      my $rc = system(@cmd);
+      if ($rc != 0)
+      {
+  	die "failed with rc=$rc: @cmd\n";
+      }
+  }
 
+  for my $client (@deploy_clients)
+  {
+      print "$client\n";
+      my @settings = make_settings($cfg, $client);
+      my @cmd = ("make", "-C", "modules/$client", "deploy-client", @default_settings, @settings);
+      print Dumper(\@cmd);
+      my $rc = system(@cmd);
+      if ($rc != 0)
+      {
+  	die "failed with rc=$rc: @cmd\n";
+      }
+  }
+}
 #
 # Copy our deployment config to the target directory.
 #
