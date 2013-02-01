@@ -1,6 +1,7 @@
 
 use Config::Simple;
 use Data::Dumper;
+use File::Copy;
 use strict;
 
 @ARGV == 1 or die "Usage: $0 deploy.cfg\n";
@@ -15,7 +16,7 @@ my $runtime = $cfg->param('deploy-runtime');
 
 my $deployment_config_name = "deployment.cfg";
 
-my @deploy_servers = $cfg->param('deploy-server');
+my @deploy_servers = ($cfg->param('deploy-service'), $cfg->param('deploy-server'));
 my @deploy_clients  = $cfg->param('deploy-client');
 my @deploy_master  = $cfg->param('deploy-master');
 
@@ -99,7 +100,7 @@ for my $server (@deploy_servers)
 
     print "$server\n";
     my @settings = make_settings($cfg, $server);
-    my @cmd = ("make", "-C", "modules/$server", "deploy-server", @default_settings, @settings);
+    my @cmd = ("make", "-C", "modules/$server", "deploy-service", @default_settings, @settings);
     print Dumper(\@cmd);
     my $rc = system(@cmd);
     if ($rc != 0)
