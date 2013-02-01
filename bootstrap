@@ -169,14 +169,12 @@ done
 
 dcfg=$top_dir/bootstrap.cfg
 cat > $dcfg <<EOF
-END
+
 target = /kb/deployment
 deploy-runtime = $rt_dir
 
 deploy-client = $modlistc
-deploy-server =
-
-END
+deploy-service =
 
 EOF
 
