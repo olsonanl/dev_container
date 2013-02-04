@@ -4,9 +4,10 @@ use Data::Dumper;
 use File::Copy;
 use strict;
 
-@ARGV == 1 or die "Usage: $0 deploy.cfg\n";
+@ARGV == 2 or die "Usage: $0 deploy.cfg tag\n";
 
 my $cfg_file = shift;
+my $tag = $ARGV[2]; 
 
 my $cfg = Config::Simple->new();
 $cfg->read($cfg_file);
@@ -62,7 +63,7 @@ for my $module (@deploy_servers, @deploy_clients, @deploy_master)
 	next;
     }
     my $gitfile = "$module.git";
-    my @cmd = ('ssh-agent', 'bash', '-c', "ssh-add id_rsa; cd modules; git clone kbase\@git.kbase.us:/$gitfile $module");
+    my @cmd = ('ssh-agent', 'bash', '-c', "ssh-add id_rsa; cd modules; git clone kbase\@git.kbase.us:/$gitfile $module; cd $module; git checkout $tag; cd ..");
     print Dumper(\@cmd);
     my $rc = system(@cmd);
     if ($rc != 0)
