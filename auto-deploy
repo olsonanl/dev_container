@@ -7,7 +7,7 @@ use strict;
 @ARGV == 2 or die "Usage: $0 deploy.cfg tag\n";
 
 my $cfg_file = shift;
-my $tag = $ARGV[2]; 
+my $tag = shift; 
 
 my $cfg = Config::Simple->new();
 $cfg->read($cfg_file);
