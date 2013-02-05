@@ -136,6 +136,10 @@ sub make_settings
     {
 	my $var = uc($n);
 	$var =~ s/-/_/g;
+	if (ref($val) eq 'ARRAY')
+	{
+	    $val = join(",", @$val);
+	}
 	push(@out, join("=", $var, $val));
     }
     return @out;
