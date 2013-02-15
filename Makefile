@@ -1,4 +1,4 @@
-
+TOP_DIR = $(KB_TOP)
 include tools/Makefile.common
 
 #MODULE_DIRS = $(wildcard modules/*)
