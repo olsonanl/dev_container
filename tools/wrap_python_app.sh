@@ -18,8 +18,8 @@ dir=\`cd "\$dir/../.."; pwd\`
 export KB_TOP="\$dir/deployment"
 export KB_RUNTIME="\$dir/runtime"
 export PATH="\$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH"
-export PYTHONPATH"\$KB_TOP/lib"
-"\$KB_RUNTIME/bin/perl" "\$KB_TOP/pybin/$script" "\$@"
+export PYTHONPATH="\$KB_TOP/lib"
+"\$KB_RUNTIME/bin/python" "\$KB_TOP/pybin/$script" "\$@"
 EOF
 
 chmod +x $dst
