@@ -93,6 +93,7 @@ build_modules:
 	if [ ! -d bin ] ; then mkdir bin ; fi
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
+			echo "Build $$m" ; \
 			(cd $$m; make ) ; \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
