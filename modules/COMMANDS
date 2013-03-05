@@ -1,2 +1,0 @@
-#group-name	mgapi	Metagenomics Scripts
-#group-set	scripts/(.*).pl	mgapi
