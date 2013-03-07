@@ -27,6 +27,7 @@ export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
 export KB_PYTHON_PATH=$python_lib
+export KB_R_PATH=$rscript_lib
 $rt_dir/bin/perl $top_dir/$src "\$@"
 EOF
     chmod +x $dst
@@ -41,6 +42,7 @@ export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
 export KB_PYTHON_PATH=$python_lib
+export KB_R_PATH=$rscript_lib
 bash $top_dir/$src "\$@"
 EOF
     chmod +x $dst
@@ -169,14 +171,12 @@ done
 
 dcfg=$top_dir/bootstrap.cfg
 cat > $dcfg <<EOF
-END
+
 target = /kb/deployment
 deploy-runtime = $rt_dir
 
 deploy-client = $modlistc
-deploy-server =
-
-END
+deploy-service =
 
 EOF
 
@@ -200,6 +200,19 @@ for moddir in modules/* ; do
     if [ -d $p ] ; then
 	elt="\$KB_TOP/$moddir/lib"
 	if [ "$python_lib" = "" ] ; then python_lib=$elt ; else python_lib="$python_lib:$elt" ; fi
+    fi
+done
+
+#
+# Construct rscript path
+#
+
+rscript_lib=""
+for moddir in modules/* ; do
+    p=$top_dir/$moddir/lib
+    if [ -d $p ] ; then
+	elt="\$KB_TOP/$moddir/lib"
+	if [ "$rscript_lib" = "" ] ; then rscript_lib=$elt ; else rscript_lib="$rscript_lib:$elt" ; fi
     fi
 done
 
@@ -228,10 +241,12 @@ export KB_TOP=$top_dir
 export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
 export KB_PYTHON_PATH=$python_lib
+export KB_R_PATH=$rscript_lib
 export JAVA_HOME=$JAVA_HOME
 export PATH=$path_str
 export PERL5LIB=\$KB_PERL_PATH
 export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
+export R_LIBS=\$KB_R_PATH:\$R_LIBS
 export GLASSFISH_HOME=\$KB_RUNTIME/glassfish3
 export CLASSPATH=$classpath
 hash -r
@@ -242,10 +257,12 @@ setenv KB_TOP $top_dir
 setenv KB_RUNTIME $rt_dir
 setenv KB_PERL_PATH $perl_lib
 setenv KB_PYTHON_PATH $python_lib
+setenv KB_R_PATH $rscript_lib
 setenv JAVA_HOME $JAVA_HOME
 setenv PATH $path_str
 setenv PERL5LIB \$KB_PERL_PATH
 setenv PYTHONPATH \$KB_PYTHON_PATH:\$PYTHONPATH
+setenv R_LIBS \$KB_R_PATH:\$R_LIBS
 setenv GLASSFISH_HOME \$KB_RUNTIME/glassfish3
 setenv CLASSPATH $classpath
 rehash

@@ -24,7 +24,9 @@ deploy-dirs:
 	-mkdir $(TARGET)
 	-mkdir $(TARGET)/bin
 	-mkdir $(TARGET)/lib
-	-mkdir $(TARGET)/plbin $(TARGET)/pybin
+	-mkdir $(TARGET)/plbin
+	-mkdir $(TARGET)/pybin
+	-mkdir $(TARGET)/rsbin
 	-mkdir $(TARGET)/services
 
 # make the necessary deployment directories
@@ -69,7 +71,8 @@ deploy-user-env:
 	echo "export PATH=$$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
 	echo "export KB_PERL_PATH=$$q$(TARGET)/lib$$q" >> $$dest; \
 	echo "export PERL5LIB=\$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; \
-	echo "export PYTHONPATH=$$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest;
+	echo "export PYTHONPATH=$$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest; \
+	echo "export R_LIBS=$$q\$$KB_PERL_PATH:\$$KB_R_PATH$$q" >> $$dest;
 
 	dest=$(TARGET)/user-env.csh; \
 	q='"'; \
@@ -78,7 +81,8 @@ deploy-user-env:
 	echo "setenv PATH $$q\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest; \
 	echo "setenv KB_PERL_PATH $$q$(TARGET)/lib$$q" >> $$dest; \
 	echo "setenv PERL5LIB \$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; \
-	echo "setenv PYTHONPATH $$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest;
+	echo "setenv PYTHONPATH $$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest; \
+	echo "setenv R_LIBS $$q\$$KB_PERL_PATH:\$$KB_R_PATH$$q" >> $$dest;
 
 
 # this is called by the default target (make with no target provided)
@@ -89,6 +93,7 @@ build_modules:
 	if [ ! -d bin ] ; then mkdir bin ; fi
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
+			echo "Build $$m" ; \
 			(cd $$m; make ) ; \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
