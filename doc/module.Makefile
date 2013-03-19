@@ -51,6 +51,50 @@ SERVER_TESTS = $(wildcard server-tests/*.t)
 
 default:
 
+# Distribution Section
+#
+# This section deals with the packaging of source code into a 
+# distributable form. This is different from a deployable form
+# as our deployments tend to be kbase specific. To create a
+# distribution, we have to consider the distribution mechanisms.
+# For starters, we will consider cpan style packages for perl
+# code, we will consider egg for python, npm for javascript,
+# and it is not clear at this time what is right for java.
+
+dist: dist-cpan dist-egg dist-npm dist-java
+
+dist-cpan: dist-cpan-client dist-cpan-service
+
+dist-egg: dist-egg-client dist-egg-service
+
+dist-npm: dist-nmp-client dist-npm-service
+
+dist-java: dist-java-client dist-java-service
+
+dist-cpan-client:
+	echo "cpan client distribution not supported"
+
+dist-cpan-service:
+	echo "cpan service distribution not supported"
+
+dist-egg-client:
+	echo "egg client distribution not supported"
+
+dist-egg-service:
+	echo "egg service distribution not supported"
+
+dist-npm-client:
+	echo "npm client distribution not supported"
+
+dist-npm-service:
+	echo "npm service distribution not supported"
+
+dist-java-client:
+	echo "java client distribution not supported"
+
+dist-java-service:
+	echo "java service distribuiton not supported"
+
 # Test Section
 
 test: test-client test-scripts test-service
