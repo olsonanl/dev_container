@@ -34,6 +34,68 @@ CHANGE DATE
 FILES AFFECTED
 COMMENT
 
+DATE	03/19/2013
+CHANGE	Add targets for creating distributions
+PURPOSE	To support conventional mechanisms for distributing source code.
+TYPE	3
+REQUESTOR	Tom
+APPROVED BY
+APPROVAL DATE
+CHANGED BY
+CHANGE DATE
+FILES AFFECTED	module.Makefile, all current module Makefiles
+COMMENT	If approved, the following code would be added to the module.Makefile
+and a foreach loop would be run over all module directories appending this code
+to the end of the module Makefile. Module owners are responsible for implementing
+the targets. Standard implementaiton designs will be provided in the near future.
+#
+# Distribution Section
+#
+# This section deals with the packaging of source code into a
+# distributable form. This is different from a deployable form
+# as our deployments tend to be kbase specific. To create a
+# distribution, we have to consider the distribution mechanisms.
+# For starters, we will consider cpan style packages for perl
+# code, we will consider egg for python, npm for javascript,
+# and it is not clear at this time what is right for java.
+
+dist: dist-cpan dist-egg dist-npm dist-java
+
+dist-cpan: dist-cpan-client dist-cpan-service
+
+dist-egg: dist-egg-client dist-egg-service
+
+dist-npm: dist-nmp-client dist-npm-service
+
+dist-java: dist-java-client dist-java-service
+
+dist-cpan-client:
+        echo "cpan client distribution not supported"
+
+dist-cpan-service:
+        echo "cpan service distribution not supported"
+
+dist-egg-client:
+        echo "egg client distribution not supported"
+
+dist-egg-service:
+        echo "egg service distribution not supported"
+
+dist-npm-client:
+        echo "npm client distribution not supported"
+
+dist-npm-service:
+        echo "npm service distribution not supported"
+
+dist-java-client:
+        echo "java client distribution not supported"
+
+dist-java-service:
+        echo "java service distribuiton not supported"
+
+
+
+
 DATE		01/16/2013
 CHANGE		Copy everything under the module's lib directory to 
 		the deployment's lib directory as part of the
