@@ -34,6 +34,25 @@ CHANGE DATE
 FILES AFFECTED
 COMMENT
 
+DATE	04/01/2013
+CHANGE	Create template directory in dev_container top dir and
+put the start_service.tt, stop_service.tt, process.tt and 
+module.Makefile in this directory.	
+PURPOSE	To further automate the construction of a service module.
+TYPE	2
+REQUESTOR	Tom
+APPROVED BY
+APPROVAL DATE
+CHANGED BY	Tom
+CHANGE DATE	04/01/2013
+FILES AFFECTED	dev_container top dir, start_service.tt, stop_service.tt,
+process.tt, module.Makefile
+COMMENT	These files would be moved to a new directory in TOP_DIR called
+template. These files would be used by the kb_create_service_module.pl
+script in dev_container_tools. The start_service.tt, stop_service.tt
+and process_service.tt would be placed under version control in the
+dev_container repo.
+
 DATE	03/19/2013
 CHANGE	Add targets for creating distributions
 PURPOSE	To support conventional mechanisms for distributing source code.
