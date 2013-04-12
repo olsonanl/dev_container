@@ -60,16 +60,35 @@ default:
 # For starters, we will consider cpan style packages for perl
 # code, we will consider egg for python, npm for javascript,
 # and it is not clear at this time what is right for java.
-
-dist: dist-cpan dist-egg dist-npm dist-java
+#
+# In all cases, it is important not to implement into these
+# targets the actual distribution. What these targets deal
+# with is creating the distributable object (.tar.gz, .jar,
+# etc) and placing it in the top level directory of the module
+# distrubution directory.
+#
+# Use <module_name>/distribution as the top level distribution
+# directory
+dist: dist-cpan dist-egg dist-npm dist-java dist-r
 
 dist-cpan: dist-cpan-client dist-cpan-service
 
 dist-egg: dist-egg-client dist-egg-service
 
-dist-npm: dist-nmp-client dist-npm-service
+# In this case, it is not clear what npm service would mean,
+# unless we are talking about a service backend implemented
+# in javascript, which I can imagine happing. So the target
+# is here, even though we don't have support for javascript
+# on the back end of the compiler at this time.
+dist-npm: dist-npm-client dist-npm-service
 
 dist-java: dist-java-client dist-java-service
+
+# in this case, I'm using the word client just for consistency
+# sake. What we mean by client is an R library. At this time
+# the meaning of a r-service is not understood. It can be
+# added at a later time if there is a good reason.
+dist-r: dist-r-client
 
 dist-cpan-client:
 	echo "cpan client distribution not supported"
@@ -94,6 +113,9 @@ dist-java-client:
 
 dist-java-service:
 	echo "java service distribuiton not supported"
+
+dist-r-client:
+	echo "r client lib distribution not supported"
 
 # Test Section
 
