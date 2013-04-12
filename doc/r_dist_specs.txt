@@ -1,0 +1,20 @@
+DEPLOYMENT OF DISTRUBTION
+
+The distribution should be copied to a location that the 'base' of the kbase R repository. The ‘base’ of a repository is a URL such as http://www.omegahat.org/R/: this must be an URL scheme that download.packages supports (which also includes ‘ftp://’ and ‘file://’, but not on most systems ‘https://’). Under that base URL there should be directory trees for one or more of the following types of package distributions:
+
+CREATION OF DISTRIBUTION
+
+The distribution can be thought of as a directory that has subdirectories and files. The concrete distribution will be a .tar.
+
+DIRECTORY STRUCTURES
+source			$BASE_URL/src/contrib
+win.binary		$BASE_URL/bin/windows/contrib/x.y	# x.y for R version x.y.z
+mac.binary.leopard	$BASE_URL/bin/macosx/leopard/contrib/x.y
+
+DISTRIBUTION FILE FORMAT
+source			.tar.gz
+win.binary		.zip
+mac.binary.leopard	.tgz
+
+
+
