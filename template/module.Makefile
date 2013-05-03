@@ -293,5 +293,4 @@ build-libs:
 		--client Bio::KBase::$(SERVICE_NAME)::Client \
 		--py biokbase/$(SERVICE_NAME)/Client \
 		--js javascript/$(SERVICE_NAME)/Client \
-		--scripts scripts \
 		$(SERVICE_SPEC) lib
