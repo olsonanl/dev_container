@@ -140,43 +140,20 @@ done
 #
 # If we come in with a JAVA_HOME set, use that. 
 #
-
-java_path=''
 if [ "$JAVA_HOME" = "" ] ; then
     if [ -d "$rt_dir/java" ] ; then
-        elt="\$KB_TOP/java"
-        java_path=$elt
+	JAVA_HOME="$rt_dir/java"
     elif [ -d "/Library/Java/Home" ] ; then
-        # Mac
-        java_path="/Library/Java/Home"
-    else
-        echo "JAVA_HOME not found" 1>&2
-        exit 1
-        #
-        # Try to find javac, and set based on that.
-        #
+	# Mac
+	JAVA_HOME="/Library/Java/Home"
+    else 
+	echo "JAVA_HOME not found" 1>&2
+	exit 1
+	#
+	# Try to find javac, and set based on that.
+	#
     fi
 fi
-
-#
-# Configure the appropriate CATALINA_HOME.
-#
-# If we come in with a CATALINA_HOME set, use that. 
-#
-tomcat_path=''
-if [ "$CATALINA_HOME" = "" ] ; then
-    if [ -d "$rt_dir/tomcat" ] ; then
-        elt="\$KB_TOP/tomcat"
-        tomcat_path=$elt
-    elif [ -d "/Library/Tomcat/Home" ] ; then
-        # Mac
-        tomcat_path="/Library/Tomcat/Home"
-    else
-        echo "CATALINA_HOME not found" 1>&2
-        exit 1
-    fi
-fi
-
 
 modlist=""
 modlistc=""
@@ -265,8 +242,7 @@ export KB_RUNTIME=$rt_dir
 export KB_PERL_PATH=$perl_lib
 export KB_PYTHON_PATH=$python_lib
 export KB_R_PATH=$rscript_lib
-export JAVA_HOME=$java_path
-export CATALINA_HOME=$tomcat_path
+export JAVA_HOME=$JAVA_HOME
 export PATH=$path_str
 export PERL5LIB=\$KB_PERL_PATH
 export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
@@ -282,8 +258,7 @@ setenv KB_RUNTIME $rt_dir
 setenv KB_PERL_PATH $perl_lib
 setenv KB_PYTHON_PATH $python_lib
 setenv KB_R_PATH $rscript_lib
-setenv JAVA_HOME $java_path
-setenv CATALINA_HOME $tomcat_path
+setenv JAVA_HOME $JAVA_HOME
 setenv PATH $path_str
 setenv PERL5LIB \$KB_PERL_PATH
 setenv PYTHONPATH \$KB_PYTHON_PATH:\$PYTHONPATH

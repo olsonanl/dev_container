@@ -72,10 +72,7 @@ deploy-user-env:
 	echo "export KB_PERL_PATH=$$q$(TARGET)/lib$$q" >> $$dest; \
 	echo "export PERL5LIB=\$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; \
 	echo "export PYTHONPATH=$$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest; \
-	echo "export R_LIBS=$$q\$$KB_PERL_PATH:\$$KB_R_PATH$$q" >> $$dest; \
-	echo "export JAVA_HOME=$$q\$$KB_RUNTIME/java$$q" >> $$dest; \
-	echo "export CATALINA_HOME=$$q\$$KB_RUNTIME/tomcat$$q" >> $$dest; \
-	echo "export PATH=$$q\$$JAVA_HOME/bin:\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest;
+	echo "export R_LIBS=$$q\$$KB_PERL_PATH:\$$KB_R_PATH$$q" >> $$dest;
 
 	dest=$(TARGET)/user-env.csh; \
 	q='"'; \
@@ -85,10 +82,7 @@ deploy-user-env:
 	echo "setenv KB_PERL_PATH $$q$(TARGET)/lib$$q" >> $$dest; \
 	echo "setenv PERL5LIB \$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; \
 	echo "setenv PYTHONPATH $$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest; \
-	echo "setenv R_LIBS $$q\$$KB_PERL_PATH:\$$KB_R_PATH$$q" >> $$dest; \
-	echo "setenv JAVA_HOME=$$q\$$KB_RUNTIME/java$$q" >> $$dest; \
-	echo "setenv CATALINA_HOME=$$q\$$KB_RUNTIME/tomcat$$q" >> $$dest; \
-	echo "setenv PATH=$$q\$$JAVA_HOME/bin:\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest;
+	echo "setenv R_LIBS $$q\$$KB_PERL_PATH:\$$KB_R_PATH$$q" >> $$dest;
 
 
 # this is called by the default target (make with no target provided)
