@@ -34,6 +34,20 @@ CHANGE DATE
 FILES AFFECTED
 COMMENT
 
+DATE	05/14/2013
+CHANGE	Add java class path and java home and catalina home env variables to user-env.sh
+PURPOSE	To allow for correct envorinment settings in the deployment environment
+TYPE	3
+REQUESTOR	Guru
+APPROVED BY	Tom
+APPROVAL DATE	05/14/2013
+CHANGED BY	Guru
+CHANGE DATE	05/14/2013
+FILES AFFECTED	dev_container/Makefile
+		$TARGET/user-env.sh
+		$TARGET/user-env.csh
+COMMENT
+
 DATE	04/01/2013
 CHANGE	Create template directory in dev_container top dir and
 put the start_service.tt, stop_service.tt, process.tt and 
