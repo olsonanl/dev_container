@@ -1,10 +1,15 @@
 TOP_DIR = ../..
 DEPLOY_RUNTIME ?= /kb/runtime
 TARGET ?= /kb/deployment
+include $(TOP_DIR)/tools/Makefile.common
+
 SERVICE_SPEC = 
 SERVICE_NAME =
+SERVICE_PORT =
+SERVICE_DIR  =
 
-#include $(TOP_DIR)/tools/Makefile.common
+SERVICE_PSGI = $(SERVICE_NAME).psgi
+TPAGE_ARGS = --define kb_top=$(TARGET) --define kb_runtime=$(DEPLOY_RUNTIME) --define kb_service_name=$(SERVICE_NAME) --define kb_service_dir=$(SERVICE_DIR) --define kb_service_port=$(SERVICE_PORT) --define kb_psgi=$(SERVICE_PSGI)
 
 # to wrap scripts and deploy them to $(TARGET)/bin using tools in
 # the dev_container. right now, these vars are defined in
@@ -245,6 +250,7 @@ deploy-scripts:
 		$(WRAP_PERL_SCRIPT) "$(TARGET)/plbin/$$basefile" $(TARGET)/bin/$$base ; \
 	done
 
+
 # Deploying a service refers to to deploying the capability
 # to run a service. Becuase service code is often deployed 
 # as part of the libs, meaning service code gets deployed
@@ -252,6 +258,13 @@ deploy-scripts:
 # generally concerned with the service start and stop scripts.
 
 deploy-service:
+	mkdir -p $(TARGET)/services/$(SERVICE_DIR)
+	$(TPAGE) $(TPAGE_ARGS) service/start_service.tt > $(TARGET)/services/$(SERVICE_DIR)/start_service
+	chmod +x $(TARGET)/services/$(SERVICE_DIR)/start_service
+	$(TPAGE) $(TPAGE_ARGS) service/stop_service.tt > $(TARGET)/services/$(SERVICE_DIR)/stop_service
+	chmod +x $(TARGET)/services/$(SERVICE_DIR)/stop_service
+	$(MK_CONFIG)
+	echo "done executing deploy-service target"
 
 # Deploying docs here refers to the deployment of documentation
 # of the API. We'll include a description of deploying documentation
@@ -259,8 +272,8 @@ deploy-service:
 # how to standardize and automate CLI documentation.
 
 deploy-docs: build-docs
-	-mkdir -p $(TARGET)/services/$(SERVICE_NAME)/webroot/.
-	cp docs/*.html $(TARGET)/services/$(SERVICE_NAME)/webroot/.
+	-mkdir -p $(TARGET)/services/$(SERVICE_DIR)/webroot/.
+	cp docs/*.html $(TARGET)/services/$(SERVICE_DIR)/webroot/.
 
 # The location of the Client.pm file depends on the --client param
 # that is provided to the compile_typespec command. The
@@ -287,7 +300,7 @@ compile-docs: build-libs
 
 build-libs:
 	compile_typespec \
-		--psgi $(SERVICE_NAME).psgi \
+		--psgi $(SERVICE_PSGI)  \
 		--impl Bio::KBase::$(SERVICE_NAME)::$(SERVICE_NAME)Impl \
 		--service Bio::KBase::$(SERVICE_NAME)::Service \
 		--client Bio::KBase::$(SERVICE_NAME)::Client \
