@@ -4,6 +4,7 @@ use Pod::Usage;
 
 GetOptions ('h',    \$help,
 	    'help', \$help,
+	    'a',    \$abort_on_conflict,
 	   );
 pod2usage(-exitstatus => 0, -verbose => 2) if $help;
 
@@ -37,6 +38,7 @@ foreach my $key (keys $local_cfg->vars() ) {
 		warn "key conflict: global $key, ", $global_cfg->param($key), "\n",
 		     "key conflict: local  $key, ", $local_cfg->param($key),  "\n",
 		     "keeping global config\n";
+		die "and aborting -  on conflict is set to true" if defined $abort_on_conflict;
 	}
 	else {
 		$global_cfg->param($key, $local_cfg->param($key));
@@ -98,7 +100,13 @@ file will be created as a backup.
 
 =over
 
-=item   -h, --help  This documentation
+=item   -h, --help  
+This documentation
+
+=item   -a
+When set, the progam will abort with a non-zero return
+value if a convlict exists betweeen the deploy.cfg and the existing
+deployment.cfg files
 
 =back
 
