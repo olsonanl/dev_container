@@ -34,6 +34,73 @@ CHANGE DATE
 FILES AFFECTED
 COMMENT
 
+DATE	06/04/2013
+CHANGE	add config file deployment support
+PURPOSE	to provide automated deployment of the deploy.cfg files when running make deploy
+TYPE	1
+REQUESTOR	Tom
+APPROVED BY
+APPROVAL DATE
+CHANGED BY	Tom
+CHANGE DATE
+FILES AFFECTED	Makefile.common.rules
+		Makefile.commom
+		module.Makefile
+COMMENT	The following changes are proposed.
+	1) add a variable to the Makefile.common file called MK_CONFIG. This variable
+	holds the name of the executable. For now, I'm working with a perl script based
+	on Config::Simple and will check this in.
+	2) add a target to Makefile.commom.rules called deploy-cfg. This target will
+	execute the mkcfg program in the dev container tools dir on the modules 
+	deploy.cfg file.
+	3) add a dependency in the module.Makefile such that deploy-service is dependent
+	on deploy-cfg.
+
+
+Here is the user contributed perldoc for the mkcfg program in the dev_container tools 
+directory:
+
+NAME
+       mkcfg
+
+SYNOPSIS
+       mkcfg deploy.cfg
+       mkcfg -h, --help
+
+DESCRIPTION
+       The mkcfg command appends the module deploy.cfg file in the module top level directory to the
+       deployment.cfg file in the deployment top level directory directory.
+
+       The deployment directory is specified by the $TARGET environment variable.
+
+       If neither file exists, then an empty deployment.cfg file is created.
+
+       If deploy.cfg exists but not deployment.cfg, then a deployment.cfg is created that contains the contents
+       of deploy.cfg.
+
+       If deployment.cfg exists but not deploy.cfg, then deployment.cfg remains unchanged, but due to the write a
+       new timestamp on the file will occur.
+
+       If both files exist, a merge of the files will be attempted, and as long as there are no conflicts between
+       the values of a given key in a given block the merge will succeed and a new deployment.cfg file will be
+       written.
+
+       If both files exist and there is a conflict between the values of a given key in a given block, the
+       program will issue a warning and keep the global setting.
+
+       No order is assumed on the blocks in the output file.
+
+       If the deployment.cfg exists, under all cases a deployment.cfg.bak file will be created as a backup.
+
+COMMAND-LINE OPTIONS
+       -h, --help  This documentation
+
+AUTHORS
+       Thomas Brettin Shane Canon Dan Olson
+
+
+
+
 DATE	05/14/2013
 CHANGE	Add java class path and java home and catalina home env variables to user-env.sh
 PURPOSE	To allow for correct envorinment settings in the deployment environment
