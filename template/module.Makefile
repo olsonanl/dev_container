@@ -256,8 +256,11 @@ deploy-scripts:
 # as part of the libs, meaning service code gets deployed
 # when deploy-libs is called, the deploy-service target is
 # generally concerned with the service start and stop scripts.
+# The deploy-cfg target is defined in the common rules file
+# located at $TOP_DIR/tools/Makefile.common.rules and included
+# at the end of this file.
 
-deploy-service:
+deploy-service: deploy-cfg
 	mkdir -p $(TARGET)/services/$(SERVICE_DIR)
 	$(TPAGE) $(TPAGE_ARGS) service/start_service.tt > $(TARGET)/services/$(SERVICE_DIR)/start_service
 	chmod +x $(TARGET)/services/$(SERVICE_DIR)/start_service
@@ -307,3 +310,9 @@ build-libs:
 		--py biokbase/$(SERVICE_NAME)/Client \
 		--js javascript/$(SERVICE_NAME)/Client \
 		$(SERVICE_SPEC) lib
+
+# the Makefile.common.rules contains a set of rules that can be used
+# in this setup. Because it is included last, it has the effect of
+# shadowing any targets defined above. So lease be aware of the
+# set of targets in the common rules file.
+include $(TOP_DIR)/tools/Makefile.common.rules
