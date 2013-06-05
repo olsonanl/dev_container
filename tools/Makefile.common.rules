@@ -35,6 +35,8 @@ deploy-python-scripts:
 deploy-libs:
 	rsync -arv lib/. $(TARGET)/lib/.
 
+deploy-cfg:
+	$(DEPLOY_RUNTIME)/bin/perl $(TOOLS_DIR)/$(MK_CONFIG)
 #
 # We depend on the toplevel user-env so that a re-bootstrap
 # will cause the scripts to be rebuilt. This eliminates a class
