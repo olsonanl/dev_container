@@ -20,14 +20,14 @@ my $local_cfg  = Config::Simple->new( syntax => 'ini' );
 # if there is a global deployment.cfg file, read it
 if (-e "$ENV{TARGET}/deployment.cfg" ) {
 	$global_cfg->read("$ENV{TARGET}/deployment.cfg")
-	  or die "can not read $ENV{TARGET}/deployment.cfg";
+	  or die "can not read $ENV{TARGET}/deployment.cfg\n", $global_cfg->error();
 	$global_cfg->save("$ENV{TARGET}/deployment.cfg.bak");
 }
 
 # if there is a module deploy.cfg available, read it 
 if (-e './deploy.cfg') {
 	$local_cfg->read('./deploy.cfg')
-	  or die "can not read ./deploy.cfg";
+	  or die "can not read ./deploy.cfg", $local_cfg->error();
 }
 
 # merge the two configs, issueing a warning if the same key exists with
@@ -46,7 +46,7 @@ foreach my $key (keys $local_cfg->vars() ) {
 }
 
 # write out the resulting global deployment config
-$global_cfg->write("$ENV{TARGET}/deployment.cfg");
+$global_cfg->write("$ENV{TARGET}/deployment.cfg") if $global_cfg->param();
 
 
 
