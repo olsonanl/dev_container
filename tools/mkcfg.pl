@@ -5,6 +5,7 @@ use Pod::Usage;
 GetOptions ('h',    \$help,
 	    'help', \$help,
 	    'a',    \$abort_on_conflict,
+	    't',    \$target,
 	   );
 pod2usage(-exitstatus => 0, -verbose => 2) if $help;
 
@@ -18,6 +19,12 @@ my $global_cfg = Config::Simple->new( syntax => 'ini' );
 my $local_cfg  = Config::Simple->new( syntax => 'ini' );
 
 # if there is a global deployment.cfg file, read it
+if (defined $target ) {
+	# then use the command line provided target
+	die "$target is not a valid directory" unless -d $target;
+	die "$target is not a writable directory" unless -w $target;
+	$ENV{TARGET} = $target;
+}
 if (-e "$ENV{TARGET}/deployment.cfg" ) {
 	$global_cfg->read("$ENV{TARGET}/deployment.cfg")
 	  or die "can not read $ENV{TARGET}/deployment.cfg\n", $global_cfg->error();
