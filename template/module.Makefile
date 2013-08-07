@@ -266,7 +266,7 @@ deploy-service: deploy-cfg
 	chmod +x $(TARGET)/services/$(SERVICE_DIR)/start_service
 	$(TPAGE) $(TPAGE_ARGS) service/stop_service.tt > $(TARGET)/services/$(SERVICE_DIR)/stop_service
 	chmod +x $(TARGET)/services/$(SERVICE_DIR)/stop_service
-	$(MK_CONFIG)
+#	$(MK_CONFIG)
 	echo "done executing deploy-service target"
 
 # Deploying docs here refers to the deployment of documentation
