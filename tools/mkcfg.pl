@@ -1,11 +1,12 @@
 use Config::Simple;
 use Getopt::Long;
 use Pod::Usage;
+our $VERSION = "0.1.0";
 
 GetOptions ('h',    \$help,
 	    'help', \$help,
 	    'a',    \$abort_on_conflict,
-	    't',    \$target,
+	    't=s',    \$target,
 	   );
 pod2usage(-exitstatus => 0, -verbose => 2) if $help;
 
@@ -53,6 +54,7 @@ foreach my $key (keys $local_cfg->vars() ) {
 }
 
 # write out the resulting global deployment config
+$global_cfg->param('dev_container.version', $VERSION);
 $global_cfg->write("$ENV{TARGET}/deployment.cfg") if $global_cfg->param();
 
 
