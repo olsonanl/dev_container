@@ -36,7 +36,7 @@ deploy-libs:
 	rsync -arv lib/. $(TARGET)/lib/.
 
 deploy-cfg:
-	$(DEPLOY_RUNTIME)/bin/perl $(MK_CONFIG) -t $(TARGET)
+	$(DEPLOY_RUNTIME)/bin/perl $(MK_CONFIG)
 #
 # We depend on the toplevel user-env so that a re-bootstrap
 # will cause the scripts to be rebuilt. This eliminates a class
