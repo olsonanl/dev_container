@@ -1,5 +1,7 @@
 #
 # Wrap a perl script for execution in the development runtime environment.
+# Ultimately should be able to emit warnings about deprecated script
+# names to stderr
 #
 
 if [ $# -ne 2 ] ; then
