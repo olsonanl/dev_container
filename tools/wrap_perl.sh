@@ -20,6 +20,14 @@ export KB_TOP=$KB_TOP
 export KB_RUNTIME=$KB_RUNTIME
 export PATH=$KB_RUNTIME/bin:$KB_TOP/bin:\$PATH
 export PERL5LIB=$KB_PERL_PATH
+EOF
+for var in $WRAP_VARIABLES ; do
+	val=${!var}
+	if [ "$val" != "" ] ; then
+		echo "export $var='$val'" >> $dst
+	fi
+done
+cat >> $dst <<EOF
 $KB_RUNTIME/bin/perl $src "\$@"
 EOF
 
