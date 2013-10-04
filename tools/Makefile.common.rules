@@ -33,7 +33,7 @@ deploy-python-scripts:
 	done 
 
 deploy-libs:
-	rsync --exclude '.bak' -arv lib/. $(TARGET)/lib/.
+	rsync --exclude '*.bak*' -arv lib/. $(TARGET)/lib/.
 
 deploy-cfg:
 	$(DEPLOY_RUNTIME)/bin/perl $(TOOLS_DIR)/$(MK_CONFIG)
