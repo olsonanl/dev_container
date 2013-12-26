@@ -266,7 +266,13 @@ deploy-service: deploy-cfg
 	chmod +x $(TARGET)/services/$(SERVICE_DIR)/start_service
 	$(TPAGE) $(TPAGE_ARGS) service/stop_service.tt > $(TARGET)/services/$(SERVICE_DIR)/stop_service
 	chmod +x $(TARGET)/services/$(SERVICE_DIR)/stop_service
+	$(TPAGE) $(TPAGE_ARGS) service/upstart.tt > service/$(SERVICE_NAME).conf
+	chmod +x service/$(SERVICE_NAME).conf
 	echo "done executing deploy-service target"
+
+deploy-upstart: deploy-service
+	-cp service/$(SERVICE_NAME).conf /etc/init/
+	echo "done executing deploy-upstart target"
 
 # Deploying docs here refers to the deployment of documentation
 # of the API. We'll include a description of deploying documentation
