@@ -1,5 +1,5 @@
 deploy-dir-service:
-	if [ ! -d $(SERVICE_DIR) ] ; then mkdir $(SERVICE_DIR) ; fi
+	if [ ! -d $(SERVICE_DIR) ] ; then mkdir -p $(SERVICE_DIR) ; fi
 	if [ "$(SERVICE_SUBDIRS)" != "" ] ; then \
 		for dir in $(SERVICE_SUBDIRS) ; do \
 		    	if [ ! -d $(SERVICE_DIR)/$$dir ] ; then mkdir -p $(SERVICE_DIR)/$$dir ; fi \
