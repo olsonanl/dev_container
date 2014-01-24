@@ -81,13 +81,34 @@ deploy-user-env:
 	echo "setenv KB_TOP $$q$(TARGET)$$q" > $$dest; \
 	echo "setenv KB_RUNTIME $$q$(DEPLOY_RUNTIME)$$q" >> $$dest; \
 	echo "setenv KB_PERL_PATH $$q$(TARGET)/lib$$q" >> $$dest; \
-	echo "setenv PERL5LIB \$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; \
-	echo "setenv PYTHONPATH $$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest; \
-	echo "setenv R_LIBS $$q\$$KB_PERL_PATH:\$$KB_R_PATH$$q" >> $$dest; \
+	echo "setenv PERL5LIB \$${KB_PERL_PATH}:\$$KB_PERL_PATH/perl5" >> $$dest; \
+	echo "if (\$$?PYTHONPATH) then" >> $$dest; \
+	echo "   setenv PYTHONPATH $$q\$${KB_PERL_PATH}:\$$PYTHONPATH$$q" >> $$dest; \
+	echo "else" >> $$dest; \
+	echo "   setenv PYTHONPATH $$q\$${KB_PERL_PATH}$$q" >> $$dest; \
+	echo "endif" >> $$dest; \
+	echo "if (\$$?KB_R_PATH) then" >> $$dest; \
+	echo "    setenv R_LIBS $$q\$${KB_PERL_PATH}:\$$KB_R_PATH$$q" >> $$dest; \
+	echo "else" >> $$dest; \
+	echo "    setenv R_LIBS $$q\$${KB_PERL_PATH}$$q" >> $$dest; \
+	echo "endif" >> $$dest; \
 	echo "setenv JAVA_HOME $$q\$$KB_RUNTIME/java$$q" >> $$dest; \
 	echo "setenv CATALINA_HOME $$q\$$KB_RUNTIME/tomcat$$q" >> $$dest; \
 	echo "setenv PATH $$q\$$JAVA_HOME/bin:\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest;
 
+	dest=$(TARGET)/service-env.sh ; \
+	q='"'; \
+	echo "source $(TARGET)/user-env.sh;" > $$dest; \
+	echo "for i in $(TARGET)/services/*/bin; do" >> $$dest; \
+	echo "   export PATH=$q\$${PATH}:\$$i$q;" >> $$dest; \
+	echo "done" >> $$dest
+
+	dest=$(TARGET)/service-env.csh ; \
+	q='"'; \
+	echo "source $(TARGET)/user-env.csh;" > $$dest; \
+	echo "foreach i ($(TARGET)/services/*/bin)" >> $$dest; \
+	echo "   setenv PATH $q\$${PATH}:\$$i$q;" >> $$dest; \
+	echo "end" >> $$dest
 
 # this is called by the default target (make with no target provided)
 # the modules will be deployed in the dev_container
