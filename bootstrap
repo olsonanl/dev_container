@@ -146,6 +146,8 @@ if [ "$JAVA_HOME" = "" ] ; then
     if [ -d "$rt_dir/java" ] ; then
 	elt="\$KB_RUNTIME/java"
 	java_path=$elt
+    elif [ -x /usr/libexec/java_home ] ; then
+	java_path=`/usr/libexec/java_home`
     elif [ -d "/Library/Java/Home" ] ; then
 	# Mac
 	java_path="/Library/Java/Home"
@@ -175,7 +177,6 @@ if [ "$CATALINA_HOME" = "" ] ; then
 	tomcat_path="/Library/Tomcat/Home"
     else 
 	echo "CATALINA_HOME not found" 1>&2
-	exit 1
     fi
 else
 	tomcat_path="$CATALINA_HOME"
