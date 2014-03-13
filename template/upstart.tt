@@ -12,7 +12,7 @@ stop on runlevel [!23]
 respawn
 respawn limit 10 5
 
-pre-start exec chown [% kb_runas_user %] [% kb_top %]/services/[% kb_service_dir %]
+pre-start exec chown -R [% kb_runas_user %] [% kb_top %]/services/[% kb_service_dir %]
 
 # setuid [% kb_runas_user %] will work if you upgrade upstart to 1.4 or higher
 # Then you don't need to do the su
