@@ -7,11 +7,13 @@ use Getopt::Long;
 
 my @overrides;
 my $target;
+my @modules;
 
 my $rc = GetOptions("target=s" => \$target,
+		    "module=s" => \@modules,
 		    "override=s" => \@overrides);
 
-@ARGV == 2 || @ARGV == 1 or die "Usage: $0 [--override key=value] deploy.cfg tag\n";
+@ARGV == 2 || @ARGV == 1 or die "Usage: $0 [--module module-dir] [--override key=value] deploy.cfg tag\n";
 
 my $cfg_file = shift;
 my $tag = shift; 
@@ -38,6 +40,18 @@ my $deployment_config_name = "deployment.cfg";
 my @deploy_servers = ($cfg->param('deploy-service'), $cfg->param('deploy-server'));
 my @deploy_clients  = $cfg->param('deploy-client');
 my @deploy_master  = $cfg->param('deploy-master');
+
+
+my %modules;
+if (@modules)
+{
+    %modules = map { $_ => 1 } @modules;
+}
+else
+{
+    %modules = map { $_ => 1 } (@deploy_servers, @deploy_clients, @deploy_master);
+}
+
 
 my @default_settings = make_settings($cfg, 'default');
 
@@ -90,6 +104,7 @@ close(F);
 
 for my $module (@deploy_servers, @deploy_clients, @deploy_master)
 {
+    next unless $modules{$module};
     if (-d "modules/$module")
     {
 	warn "$module is already checked out\n";
@@ -115,6 +130,7 @@ if ($rc != 0)
 
 for my $server (@deploy_master)
 {
+    next unless $modules{$server};
     print "DEPLOY master $server\n";
     my @settings = make_settings($cfg, $server);
     my @cmd = ("make", "-C", "modules/$server", "deploy", @default_settings, @settings);
@@ -128,6 +144,7 @@ for my $server (@deploy_master)
 
 for my $server (@deploy_servers)
 {
+    next unless $modules{$server};
     print "DEPLOY server $server\n";
     my @settings = make_settings($cfg, $server);
     my @cmd = ("make", "-C", "modules/$server", "deploy-service", @default_settings, @settings);
@@ -141,6 +158,7 @@ for my $server (@deploy_servers)
 
 for my $client (@deploy_clients)
 {
+    next unless $modules{$client};
     print "DEPLOY client $client\n";
     my @settings = make_settings($cfg, $client);
     my @cmd = ("make", "-C", "modules/$client", "deploy-client", @default_settings, @settings);
