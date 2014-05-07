@@ -5,6 +5,8 @@
 # Make sure to set up the user run account
 # shell> groupadd [% kb_runas_user %] 
 # shell> useradd -r -g [% kb_runas_user %] [% kb_runas_user %]
+# If the above doesn't work, this has been know to work as well -
+# shell> adduser --system [% kb_runas_user %]  --group  --no-create-home
 
 start on runlevel [23]
 stop on runlevel [!23]
