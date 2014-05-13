@@ -199,6 +199,8 @@ done
 dcfg=$top_dir/bootstrap.cfg
 cat > $dcfg <<EOF
 
+[default]
+
 target = /kb/deployment
 deploy-runtime = $rt_dir
 
