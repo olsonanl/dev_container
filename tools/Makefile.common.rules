@@ -6,7 +6,7 @@ deploy-dir-service:
 		done;  \
 	fi
 
-deploy-scripts: deploy-perl-scripts deploy-python-scripts
+deploy-scripts: deploy-perl-scripts deploy-python-scripts deploy-sh-scripts
 
 deploy-perl-scripts:
 	export KB_TOP=$(TARGET); \
@@ -30,6 +30,17 @@ deploy-python-scripts:
 		echo install $$src $$base ; \
 		cp $$src $(TARGET)/pybin ; \
 		$(WRAP_PYTHON_SCRIPT) "$(TARGET)/pybin/$$basefile" $(TARGET)/bin/$$base ; \
+	done 
+
+deploy-sh-scripts:
+	export KB_TOP=$(TARGET); \
+	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
+	for src in $(SRC_SH) ; do \
+		basefile=`basename $$src`; \
+		base=`basename $$src .sh`; \
+		echo install $$src $$base ; \
+		cp $$src $(TARGET)/shbin ; \
+		$(WRAP_SH_SCRIPT) "$(TARGET)/shbin/$$basefile" $(TARGET)/bin/$$base ; \
 	done 
 
 deploy-libs:
