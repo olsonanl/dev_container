@@ -55,6 +55,9 @@ deploy-cfg:
 # in the wrapped script don't have additional libraries that were
 # added.
 #
+$(BIN_DIR)/%: scripts/%.sh $(TOP_DIR)/user-env.sh
+	$(WRAP_SH_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
+
 $(BIN_DIR)/%: scripts/%.pl $(TOP_DIR)/user-env.sh
 	$(WRAP_PERL_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
 
