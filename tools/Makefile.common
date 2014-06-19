@@ -26,6 +26,14 @@ BIN_PYTHON = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_PYTHON))))
 
 DEPLOY_PYTHON = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PYTHON))))
 
+WRAP_SH_TOOL = wrap_sh
+WRAP_SH_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_SH_TOOL).sh
+
+SRC_SH = $(wildcard scripts/*.sh)
+BIN_SH = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_SH))))
+
+DEPLOY_SH = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_SH))))
+
 SERVICE_DIR = $(TARGET)/services/$(SERVICE)
 
 SERVICE_SUBDIRS = webroot

@@ -6,7 +6,7 @@ deploy-dir-service:
 		done;  \
 	fi
 
-deploy-scripts: deploy-perl-scripts deploy-python-scripts
+deploy-scripts: deploy-perl-scripts deploy-python-scripts deploy-sh-scripts
 
 deploy-perl-scripts:
 	export KB_TOP=$(TARGET); \
@@ -32,6 +32,17 @@ deploy-python-scripts:
 		$(WRAP_PYTHON_SCRIPT) "$(TARGET)/pybin/$$basefile" $(TARGET)/bin/$$base ; \
 	done 
 
+deploy-sh-scripts:
+	export KB_TOP=$(TARGET); \
+	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
+	for src in $(SRC_SH) ; do \
+		basefile=`basename $$src`; \
+		base=`basename $$src .sh`; \
+		echo install $$src $$base ; \
+		cp $$src $(TARGET)/shbin ; \
+		$(WRAP_SH_SCRIPT) "$(TARGET)/shbin/$$basefile" $(TARGET)/bin/$$base ; \
+	done 
+
 deploy-libs:
 	rsync --exclude '*.bak*' -arv lib/. $(TARGET)/lib/.
 
@@ -44,6 +55,9 @@ deploy-cfg:
 # in the wrapped script don't have additional libraries that were
 # added.
 #
+$(BIN_DIR)/%: scripts/%.sh $(TOP_DIR)/user-env.sh
+	$(WRAP_SH_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
+
 $(BIN_DIR)/%: scripts/%.pl $(TOP_DIR)/user-env.sh
 	$(WRAP_PERL_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
 
