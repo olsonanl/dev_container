@@ -1,3 +1,7 @@
+deploy-wft
+	mkdir -p $(TARGET)/lib/Bio/KBase/$(SERVICE_NAME)/
+	cp wft/*.template $(TARGET)/lib/Bio/KBase/$(SERVICE_NAME)/
+
 deploy-dir-service:
 	if [ ! -d $(SERVICE_DIR) ] ; then mkdir -p $(SERVICE_DIR) ; fi
 	if [ "$(SERVICE_SUBDIRS)" != "" ] ; then \
