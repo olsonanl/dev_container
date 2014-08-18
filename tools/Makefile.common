@@ -34,12 +34,20 @@ BIN_SH = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_SH))))
 
 DEPLOY_SH = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_SH))))
 
+WRAP_R_TOOL = wrap_rscript
+WRAP_R_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_R_TOOL).sh
+
+SRC_R = $(wildcard scripts/*.R)
+BIN_R = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_R))))
+
+DEPLOY_RSCRIPT = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_R))))
+
 SERVICE_DIR = $(TARGET)/services/$(SERVICE)
 
 SERVICE_SUBDIRS = webroot
 
 TPAGE = $(DEPLOY_RUNTIME)/bin/perl $(DEPLOY_RUNTIME)/bin/tpage
-MK_CONFIG = $(TOOL_DIRS)/mkcfg
+MK_CONFIG = $(TOOLS_DIR)/mkcfg
 
 JAVA = java
 JAVAC = javac

@@ -10,7 +10,7 @@ deploy-dir-service:
 		done;  \
 	fi
 
-deploy-scripts: deploy-perl-scripts deploy-python-scripts deploy-sh-scripts
+deploy-scripts: deploy-perl-scripts deploy-python-scripts deploy-sh-scripts deploy-r-scripts
 
 deploy-perl-scripts:
 	export KB_TOP=$(TARGET); \
@@ -47,6 +47,18 @@ deploy-sh-scripts:
 		$(WRAP_SH_SCRIPT) "$(TARGET)/shbin/$$basefile" $(TARGET)/bin/$$base ; \
 	done 
 
+deploy-r-scripts:
+	export KB_TOP=$(TARGET); \
+	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
+	export KB_R_PATH=$(TARGET)/lib ; \
+	for src in $(SRC_R) ; do \
+		basefile=`basename $$src`; \
+		base=`basename $$src .R`; \
+		echo install $$src $$base ; \
+		cp $$src $(TARGET)/rsbin ; \
+		$(WRAP_R_SCRIPT) "$(TARGET)/rsbin/$$basefile" $(TARGET)/bin/$$base ; \
+	done
+
 deploy-libs:
 	rsync --exclude '*.bak*' -arv lib/. $(TARGET)/lib/.
 
@@ -67,6 +79,9 @@ $(BIN_DIR)/%: scripts/%.pl $(TOP_DIR)/user-env.sh
 
 $(BIN_DIR)/%: scripts/%.py
 	$(WRAP_PYTHON_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
+
+$(BIN_DIR)/%: scripts/%.R $(TOP_DIR)/user-env.sh
+	$(WRAP_R_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
 
 %.class: %.java
 	 $(JAVAC) $(JAVAC_FLAGS) $<
