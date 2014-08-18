@@ -52,14 +52,14 @@ deploy: deploy-setup
 
 deploy-client: deploy-setup
 
-        for m in $(MODULE_DIRS); do \
-                if [ -d $$m ] ; then \
-                        (cd $$m; make deploy-client TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
-                        if [ $$? -ne 0 ] ; then \
-                                exit 1 ; \
-                        fi  \
-                fi \
-        done
+	for m in $(MODULE_DIRS); do \
+		if [ -d $$m ] ; then \
+			(cd $$m; make deploy-client TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
+			if [ $$? -ne 0 ] ; then \
+				exit 1 ; \
+			fi  \
+		fi \
+	done
 
 # make the necessary deployment directories
 # loop over each module and call its make deploy
