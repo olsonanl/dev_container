@@ -2,6 +2,10 @@ ifeq ($(KB_TOP),)
      $(error The KB_TOP environment is not set - have you sourced your user-env.sh file?)
 endif
 
+RUNTIME_BIN = $(shell if [[ -x $(KB_RUNTIME)/bin/perl ]] ; then echo $(KB_RUNTIME)/bin ; else echo $(DEPLOY_RUNTIME)/bin ; fi )
+PERL = $(RUNTIME_BIN)/perl
+TPAGE = $(RUNTIME_BIN)/tpage
+
 SERVICE_USER = kbase
 
 BIN_DIR = $(TOP_DIR)/bin
@@ -46,7 +50,7 @@ SERVICE_DIR = $(TARGET)/services/$(SERVICE)
 
 SERVICE_SUBDIRS = webroot
 
-TPAGE = $(DEPLOY_RUNTIME)/bin/perl $(DEPLOY_RUNTIME)/bin/tpage
+#TPAGE = $(DEPLOY_RUNTIME)/bin/perl $(DEPLOY_RUNTIME)/bin/tpage
 MK_CONFIG = $(TOOLS_DIR)/mkcfg
 
 JAVA = java
