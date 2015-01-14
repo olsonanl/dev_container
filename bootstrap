@@ -107,8 +107,12 @@ if [ "$missing_deps" != "" ] ; then
     for missing in $missing_deps; do
     	echo $missing | sed -e 's/\(.*\):/   from module \1: /' 1>&2
     done
-    echo "Please check these modules out and rerun '$0'"
-    exit 1
+    if [ "$KB_IGNORE_MISSING_DEPENDENCIES" ] ; then
+	echo "Ignoring missing dependencies."
+    else
+	echo "Please check these modules out and rerun '$0'"
+	exit 1
+    fi
 fi
 
 
