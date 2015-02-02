@@ -41,22 +41,56 @@ if (-e './deploy.cfg') {
 # merge the two configs, issueing a warning if the same key exists with
 # different values between the two config files
 foreach my $key (keys $local_cfg->vars() ) {
-	if ($global_cfg->param($key) and
-	    $global_cfg->param($key) ne $local_cfg->param($key)) {
-		warn "key conflict: global $key, ", $global_cfg->param($key), "\n",
-		     "key conflict: local  $key, ", $local_cfg->param($key),  "\n",
-		     "keeping global config\n";
-		die "and aborting -  on conflict is set to true" if defined $abort_on_conflict;
-	}
-	else {
-		$global_cfg->param($key, $local_cfg->param($key));
-	}
+    my $global_val = $global_cfg->param($key);
+    my $local_val = $local_cfg->param($key);
+
+    if ($global_val && !cfg_values_equal($global_val, $local_val))
+    {
+	my $gstr = ref($global_val) ? join(", ", @$global_val) : $global_val;
+	my $lstr = ref($local_val) ? join(", ", @$local_val) : $local_val;
+	warn "key conflict: global $key, $gstr\n",
+		"key conflict: local  $key, $lstr\n",
+		"keeping global config\n";
+	die "and aborting -  on conflict is set to true" if defined $abort_on_conflict;
+    }
+    else {
+	$global_cfg->param($key, $local_val);
+    }
 }
 
 # write out the resulting global deployment config
 $global_cfg->param('dev_container.version', $VERSION);
 $global_cfg->write("$ENV{TARGET}/deployment.cfg") if $global_cfg->param();
 
+sub cfg_values_equal
+{
+    my($v1, $v2) = @_;
+
+    if (ref($v1) && !ref($v2))
+    {
+	$v2 = [$v2];
+    }
+    elsif (!ref($v1) && ref($v2))
+    {
+	$v1 = [$v1];
+    }
+    if (ref($v1))
+    {
+	if (@$v1 != @$v2)
+	{
+	    return 0;
+	}
+	for my $i (0..$#$v1)
+	{
+	    return 0 if $v1->[$i] ne $v2->[$i];
+	}
+	return 1;
+    }
+    else
+    {
+	return $v1 eq $v2;
+    }
+}
 
 
 
