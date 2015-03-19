@@ -13,6 +13,7 @@ deploy-dir-service:
 deploy-scripts: deploy-perl-scripts deploy-python-scripts deploy-sh-scripts deploy-r-scripts
 
 deploy-perl-scripts:
+	if [ "$KB_OVERRIDE_TOP" != "" ] ; then sbase=$KB_OVERRIDE_TOP ; else sbase=$TARGET; fi; \
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
 	export KB_PERL_PATH=$(TARGET)/lib ; \
@@ -21,10 +22,11 @@ deploy-perl-scripts:
 		base=`basename $$src .pl`; \
 		echo install $$src $$base ; \
 		cp $$src $(TARGET)/plbin ; \
-		$(WRAP_PERL_SCRIPT) "$(TARGET)/plbin/$$basefile" $(TARGET)/bin/$$base ; \
+		$(WRAP_PERL_SCRIPT) "$$sbase/plbin/$$basefile" $(TARGET)/bin/$$base ; \
 	done 
 
 deploy-python-scripts:
+	if [ "$KB_OVERRIDE_TOP" != "" ] ; then sbase=$KB_OVERRIDE_TOP ; else sbase=$TARGET; fi; \
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
 	export KB_PYTHON_PATH=$(TARGET)/lib ; \
@@ -33,10 +35,11 @@ deploy-python-scripts:
 		base=`basename $$src .py`; \
 		echo install $$src $$base ; \
 		cp $$src $(TARGET)/pybin ; \
-		$(WRAP_PYTHON_SCRIPT) "$(TARGET)/pybin/$$basefile" $(TARGET)/bin/$$base ; \
+		$(WRAP_PYTHON_SCRIPT) "$$sbase/pybin/$$basefile" $(TARGET)/bin/$$base ; \
 	done 
 
 deploy-sh-scripts:
+	if [ "$KB_OVERRIDE_TOP" != "" ] ; then sbase=$KB_OVERRIDE_TOP ; else sbase=$TARGET; fi; \
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
 	for src in $(SRC_SH) ; do \
@@ -44,10 +47,11 @@ deploy-sh-scripts:
 		base=`basename $$src .sh`; \
 		echo install $$src $$base ; \
 		cp $$src $(TARGET)/shbin ; \
-		$(WRAP_SH_SCRIPT) "$(TARGET)/shbin/$$basefile" $(TARGET)/bin/$$base ; \
+		$(WRAP_SH_SCRIPT) "$$sbase/shbin/$$basefile" $(TARGET)/bin/$$base ; \
 	done 
 
 deploy-r-scripts:
+	if [ "$KB_OVERRIDE_TOP" != "" ] ; then sbase=$KB_OVERRIDE_TOP ; else sbase=$TARGET; fi; \
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
 	export KB_R_PATH=$(TARGET)/lib ; \
@@ -56,7 +60,7 @@ deploy-r-scripts:
 		base=`basename $$src .R`; \
 		echo install $$src $$base ; \
 		cp $$src $(TARGET)/rsbin ; \
-		$(WRAP_R_SCRIPT) "$(TARGET)/rsbin/$$basefile" $(TARGET)/bin/$$base ; \
+		$(WRAP_R_SCRIPT) "$$sbase/rsbin/$$basefile" $(TARGET)/bin/$$base ; \
 	done
 
 deploy-libs:
