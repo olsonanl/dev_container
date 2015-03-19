@@ -10,12 +10,26 @@ fi
 src=$1
 dst=$2
 
+
+if [ "$KB_OVERRIDE_TOP" != "" ] ; then
+    top=$KB_OVERRIDE_TOP
+else
+    top=$KB_TOP
+fi
+
+if [ "$KB_OVERRIDE_RUNTIME" != "" ] ; then
+    runtime=$KB_OVERRIDE_RUNTIME
+else
+    runtime=$KB_RUNTIME
+fi
+
+
 cat > $dst <<EOF
 #!/bin/sh
-export KB_TOP=$KB_TOP
-export KB_RUNTIME=$KB_RUNTIME
+export KB_TOP=$top
+export KB_RUNTIME=$runtime
 export KB_PYTHON_PATH=$KB_PYTHON_PATH
-export PATH=$KB_RUNTIME/bin:$KB_TOP/bin:\$PATH
+export PATH=$runtime/bin:$top/bin:\$PATH
 export PYTHONPATH=$KB_PYTHON_PATH:\$PYTHONPATH
 python $src "\$@"
 EOF

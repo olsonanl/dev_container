@@ -11,12 +11,24 @@ src=$1
 dst=$2
 
 
+if [ "$KB_OVERRIDE_TOP" != "" ] ; then
+    top=$KB_OVERRIDE_TOP
+else
+    top=$KB_TOP
+fi
+
+if [ "$KB_OVERRIDE_RUNTIME" != "" ] ; then
+    runtime=$KB_OVERRIDE_RUNTIME
+else
+    runtime=$KB_RUNTIME
+fi
+
 
 cat > $dst <<EOF1
 #!/bin/sh
-export KB_TOP=$KB_TOP
-export KB_RUNTIME=$KB_RUNTIME
-export PATH=$KB_RUNTIME/bin:$KB_TOP/bin:\$PATH
+export KB_TOP=$top
+export KB_RUNTIME=$runtime
+export PATH=$runtime/bin:$top/bin:\$PATH
 EOF1
 for var in $WRAP_VARIABLES ; do
 	val=${!var}
