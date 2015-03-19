@@ -23,14 +23,20 @@ else
     runtime=$KB_RUNTIME
 fi
 
+if [ "$KB_OVERRIDE_PYTHONPATH" != "" ] ; then
+    pythonpath=$KB_OVERRIDE_PYTHONPATH
+else
+    pythonpath=$KB_PYTHONPATH
+fi
+
 
 cat > $dst <<EOF
 #!/bin/sh
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
-export KB_PYTHON_PATH=$KB_PYTHON_PATH
+export KB_PYTHON_PATH=$pythonpath
 export PATH=$runtime/bin:$top/bin:\$PATH
-export PYTHONPATH=$KB_PYTHON_PATH:\$PYTHONPATH
+export PYTHONPATH=$pythonpath:\$PYTHONPATH
 python $src "\$@"
 EOF
 

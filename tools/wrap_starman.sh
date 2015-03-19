@@ -23,13 +23,19 @@ else
     runtime=$KB_RUNTIME
 fi
 
+if [ "$KB_OVERRIDE_PERL_PATH" != "" ] ; then
+    perlpath=$KB_OVERRIDE_PERL_PATH
+else
+    perlpath=$KB_PERL_PATH
+fi
+
 
 cat > $dst <<EOF
 #!/bin/sh
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
 export PATH=$runtime/bin:$top/bin:\$PATH
-export PERL5LIB=$KB_PERL_PATH
+export PERL5LIB=$perlpath
 
 if [ \$# gt 0 ] ; then
 	pidarg="--pid \$1"
