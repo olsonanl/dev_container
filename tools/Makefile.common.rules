@@ -13,7 +13,7 @@ deploy-dir-service:
 deploy-scripts: deploy-perl-scripts deploy-python-scripts deploy-sh-scripts deploy-r-scripts
 
 deploy-perl-scripts:
-	if [ "$KB_OVERRIDE_TOP" != "" ] ; then sbase=$KB_OVERRIDE_TOP ; else sbase=$TARGET; fi; \
+	if [ "$(KB_OVERRIDE_TOP)" != "" ] ; then sbase=$(KB_OVERRIDE_TOP) ; else sbase=$(TARGET); fi; \
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
 	export KB_PERL_PATH=$(TARGET)/lib ; \
@@ -26,7 +26,7 @@ deploy-perl-scripts:
 	done 
 
 deploy-python-scripts:
-	if [ "$KB_OVERRIDE_TOP" != "" ] ; then sbase=$KB_OVERRIDE_TOP ; else sbase=$TARGET; fi; \
+	if [ "$(KB_OVERRIDE_TOP)" != "" ] ; then sbase=$(KB_OVERRIDE_TOP) ; else sbase=$(TARGET); fi; \
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
 	export KB_PYTHON_PATH=$(TARGET)/lib ; \
@@ -39,7 +39,7 @@ deploy-python-scripts:
 	done 
 
 deploy-sh-scripts:
-	if [ "$KB_OVERRIDE_TOP" != "" ] ; then sbase=$KB_OVERRIDE_TOP ; else sbase=$TARGET; fi; \
+	if [ "$(KB_OVERRIDE_TOP)" != "" ] ; then sbase=$(KB_OVERRIDE_TOP) ; else sbase=$(TARGET); fi; \
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
 	for src in $(SRC_SH) ; do \
@@ -51,7 +51,7 @@ deploy-sh-scripts:
 	done 
 
 deploy-r-scripts:
-	if [ "$KB_OVERRIDE_TOP" != "" ] ; then sbase=$KB_OVERRIDE_TOP ; else sbase=$TARGET; fi; \
+	if [ "$(KB_OVERRIDE_TOP)" != "" ] ; then sbase=$(KB_OVERRIDE_TOP) ; else sbase=$(TARGET); fi; \
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
 	export KB_R_PATH=$(TARGET)/lib ; \
