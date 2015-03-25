@@ -12,7 +12,7 @@ Usage
 
 0. Clone this repository onto your development machine:
 
-        $ git clone kbase@git.kbase.us:dev_container.git
+        $ git clone https://githhub.com/kbase/dev_container
         $ cd dev_container
 
 1. The "deployment directory" needs to be a directory where you
