@@ -27,6 +27,7 @@ deploy-dirs:
 	-mkdir $(TARGET)/plbin
 	-mkdir $(TARGET)/pybin
 	-mkdir $(TARGET)/rsbin
+	-mkdir $(TARGET)/shbin
 	-mkdir $(TARGET)/services
 
 # make the necessary deployment directories
