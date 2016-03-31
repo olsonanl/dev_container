@@ -43,6 +43,9 @@ for var in $WRAP_VARIABLES ; do
 		echo "export $var='$val'" >> $dst
 	fi
 done
+for var in $PATH_ADDITIONS ; do
+    echo "export PATH=$var:\$PATH" >> $dst
+done
 cat >> $dst <<EOF
 $runtime/bin/perl $src "\$@"
 EOF

@@ -1,0 +1,22 @@
+[% DEFAULT
+   httpd_port = 2812
+   access_list = ['localhost']
+-%]
+
+set daemon 60
+
+set logfile [% logdir %]/monit.log
+set idfile [% logdir %]/monit.id
+set pidfile [% logdir %]/monit.pid
+set statefile [% logdir %]/monit.state
+
+[% IF alert_email -%]
+set alert [% alert_email %]
+[% END -%]
+
+set httpd port [% httpd_port %]
+[% FOR h IN access_list -%]
+    allow [% h %]
+[% END -%]
+
+include [% service_dir %]/*/monit.cfg
