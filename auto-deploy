@@ -37,10 +37,12 @@ my $runtime = $cfg->param('deploy-runtime');
 
 my $deployment_config_name = "deployment.cfg";
 
-my @deploy_servers = ($cfg->param('deploy-service'), $cfg->param('deploy-server'));
-my @deploy_clients  = $cfg->param('deploy-client');
-my @deploy_master  = $cfg->param('deploy-master');
-
+#
+# Greps	below are to filter empty strings that come from empty lists in	the config file.
+#
+my @deploy_servers = grep { $_ ne '' } ($cfg->param('deploy-service'), $cfg->param('deploy-server'));
+my @deploy_clients  = grep { $_ ne '' } $cfg->param('deploy-client');
+my @deploy_master  = grep { $_ ne '' } $cfg->param('deploy-master');
 
 my %modules;
 if (@modules)
