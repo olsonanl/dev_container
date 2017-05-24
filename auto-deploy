@@ -177,6 +177,14 @@ for my $client (@deploy_clients)
 
 copy($cfg_file, "$target/$deployment_config_name") or die "Cannot copy $cfg_file to $target/$deployment_config_name";
 
+#
+# If we have a setenv, copy that to the target.
+#
+if (-f "setenv.sh")
+{
+    copy("setenv.sh", "$target/setenv.sh");
+}
+
 sub make_settings
 {
     my($cfg, $module) = @_;

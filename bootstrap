@@ -300,6 +300,11 @@ export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
 export R_LIBS=\$KB_R_PATH:\$R_LIBS
 export GLASSFISH_HOME=\$KB_RUNTIME/glassfish3
 export CLASSPATH=$classpath
+
+if [ -f \$KB_TOP/setenv.sh ] ; then
+  . \$KB_TOP/setenv.sh
+fi
+
 hash -r
 EOF
 
