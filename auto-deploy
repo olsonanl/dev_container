@@ -4,7 +4,7 @@ use Data::Dumper;
 use File::Copy;
 use strict;
 use Getopt::Long;
-
+use Cwd 'abs_path';
 my @overrides;
 my $target;
 my @modules;
@@ -54,6 +54,12 @@ else
 
 
 my @default_settings = make_settings($cfg, 'default');
+
+#
+# Add the location of the deployment config to the environment
+# for intelligent deployment modules that make deeper use of it.
+#
+push(@default_settings, "AUTO_DEPLOY_CONFIG=" . abs_path($cfg_file));
 
 #
 # Apply overrides to the default settings.
