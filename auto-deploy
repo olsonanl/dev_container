@@ -21,6 +21,13 @@ my $tag = shift;
 my $cfg = Config::Simple->new();
 $cfg->read($cfg_file);
 
+#
+# In the case where we use _deploy_config inside the config stanzas instead
+# of global deploy-service/deploy-client/deploy-master lines, initialize
+# the global lists from the stanzas.
+#
+initialize_deploy_targets($cfg);
+
 if ($target)
 {
     #
@@ -37,10 +44,12 @@ my $runtime = $cfg->param('deploy-runtime');
 
 my $deployment_config_name = "deployment.cfg";
 
-my @deploy_servers = ($cfg->param('deploy-service'), $cfg->param('deploy-server'));
-my @deploy_clients  = $cfg->param('deploy-client');
-my @deploy_master  = $cfg->param('deploy-master');
-
+#
+# Greps	below are to filter empty strings that come from empty lists in	the config file.
+#
+my @deploy_servers = grep { $_ ne '' } ($cfg->param('deploy-service'), $cfg->param('deploy-server'));
+my @deploy_clients  = grep { $_ ne '' } $cfg->param('deploy-client');
+my @deploy_master  = grep { $_ ne '' } $cfg->param('deploy-master');
 
 my %modules;
 if (@modules)
@@ -181,6 +190,14 @@ for my $client (@deploy_clients)
 
 copy($cfg_file, "$target/$deployment_config_name") or die "Cannot copy $cfg_file to $target/$deployment_config_name";
 
+#
+# If we have a setenv, copy that to the target.
+#
+if (-f "setenv.sh")
+{
+    copy("setenv.sh", "$target/setenv.sh");
+}
+
 sub make_settings
 {
     my($cfg, $module) = @_;
@@ -197,4 +214,35 @@ sub make_settings
 	push(@out, join("=", $var, $val));
     }
     return @out;
+}
+
+sub initialize_deploy_targets
+{
+    my($cfg) = @_;
+
+    my $dblock = $cfg->get_block("default");
+    return if $dblock->{"deploy-service"} || $dblock->{"deploy-client"} || $dblock->{"deploy-master"};
+
+    #
+    # Scan all blocks looking for _deploy_mode
+    #
+    my %deploy;
+    for my $k ($cfg->param())
+    {
+	if ($k =~ /^([^.]+)\._deploy_mode$/)
+	{
+	    my $block = $1;
+	    my $mode = $cfg->param($k);
+	    push(@{$deploy{$mode}}, $block);
+	    #
+	    # service mode implies client mode, for the
+	    # deployment of libraries etc
+	    #
+	    push(@{$deploy{client}}, $block) if $mode eq 'service';
+	}
+    }
+    for my $mode (qw(client service master))
+    {
+	$cfg->param("default.deploy-$mode", $deploy{$mode});
+    }
 }
