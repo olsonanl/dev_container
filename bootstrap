@@ -279,18 +279,6 @@ for script in tools/*.sh ; do
     fi
 done
 
-deploy_top=$top_dir
-deploy_runtime=$rt_dir
-make_deploy_version=0
-if [ "$KB_OVERRIDE_TOP" != "" ] ; then
-    deploy_top=$KB_OVERRIDE_TOP
-    make_deploy_version=1
-fi
-if [ "$KB_OVERRIDE_RUNTIME" != "" ] ; then
-    deploy_runtime=$KB_OVERRIDE_RUNTIME
-    make_deploy_version=1
-fi
-
 path_str="\$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin"
 if [ "x$JAVA_HOME" != "x" ] ; then
     path_str="$path_str:\$JAVA_HOME/bin"
@@ -323,47 +311,6 @@ EOF
 cat > $top_dir/user-env.csh <<EOF
 setenv KB_TOP $top_dir
 setenv KB_RUNTIME "$rt_dir"
-setenv KB_PERL_PATH $perl_lib
-setenv KB_PYTHON_PATH $python_lib
-setenv KB_R_PATH $rscript_lib
-setenv JAVA_HOME $java_path
-setenv CATALINA_HOME $tomcat_path
-setenv PATH $path_str
-setenv PERL5LIB \$KB_PERL_PATH
-setenv PYTHONPATH \$KB_PYTHON_PATH:\$PYTHONPATH
-setenv R_LIBS \$KB_R_PATH:\$R_LIBS
-setenv GLASSFISH_HOME \$KB_RUNTIME/glassfish3
-setenv CLASSPATH $classpath
-rehash
-EOF
-
-if [ $make_deploy_version ] ; then
-
-    cat > $top_dir/user-env.deploy.sh <<EOF
-export KB_TOP=$deploy_top
-export KB_RUNTIME=$deploy_runtime
-export KB_PERL_PATH=$perl_lib
-export KB_PYTHON_PATH=$python_lib
-export KB_R_PATH=$rscript_lib
-export JAVA_HOME=$java_path
-export CATALINA_HOME=$tomcat_path
-export PATH=$path_str
-export PERL5LIB=\$KB_PERL_PATH
-export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
-export R_LIBS=\$KB_R_PATH:\$R_LIBS
-export GLASSFISH_HOME=\$KB_RUNTIME/glassfish3
-export CLASSPATH=$classpath
-
-if [ -f \$KB_TOP/setenv.sh ] ; then
-  . \$KB_TOP/setenv.sh
-fi
-
-hash -r
-EOF
-
-    cat > $top_dir/user-env.deploy.csh <<EOF
-setenv KB_TOP $deploy_top
-setenv KB_RUNTIME $deploy_runtime
 setenv KB_PERL_PATH $perl_lib
 setenv KB_PYTHON_PATH $python_lib
 setenv KB_R_PATH $rscript_lib
