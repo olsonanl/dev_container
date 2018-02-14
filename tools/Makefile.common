@@ -4,7 +4,12 @@ endif
 
 RUNTIME_BIN = $(shell if [[ -x $(KB_RUNTIME)/bin/perl ]] ; then echo $(KB_RUNTIME)/bin ; else echo $(DEPLOY_RUNTIME)/bin ; fi )
 PERL = $(RUNTIME_BIN)/perl
+
+ifeq ($(KB_RUNTIME),/usr)
+TPAGE = tpage
+else
 TPAGE = $(RUNTIME_BIN)/tpage
+endif
 
 SERVICE_USER = kbase
 
