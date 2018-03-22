@@ -43,6 +43,14 @@ BIN_SH = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_SH))))
 
 DEPLOY_SH = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_SH))))
 
+WRAP_NODEJS_TOOL = wrap_nodejs
+WRAP_NODEJS_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_NODEJS_TOOL).sh
+
+SRC_NODEJS = $(wildcard scripts/*.js)
+BIN_NODEJS = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_NODEJS))))
+
+DEPLOY_NODEJS = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_NODEJS))))
+
 WRAP_R_TOOL = wrap_rscript
 WRAP_R_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_R_TOOL).sh
 
