@@ -7,7 +7,7 @@ MODULES = $(shell $(TOOLS_DIR)/module-order modules)
 MODULE_DIRS = $(foreach mod,$(MODULES),modules/$(mod))
 
 #
-# Default deplyment target. May be overridden to deploy to an alternative location.
+# Default deployment target. May be overridden to deploy to an alternative location.
 #
 # DEPLOY_TARGET is what is written into the deployed files. Used for generating
 # deployments that eventually install into a location different than the build.

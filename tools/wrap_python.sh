@@ -23,10 +23,10 @@ else
     runtime=$KB_RUNTIME
 fi
 
-if [ "$KB_OVERRIDE_PYTHONPATH" != "" ] ; then
-    pythonpath=$KB_OVERRIDE_PYTHONPATH
+if [ "$KB_OVERRIDE_PYTHON_PATH" != "" ] ; then
+    pythonpath=$KB_OVERRIDE_PYTHON_PATH
 else
-    pythonpath=$KB_PYTHONPATH
+    pythonpath=$KB_PYTHON_PATH
 fi
 
 
