@@ -15,8 +15,7 @@ MODULE_DIRS = $(foreach mod,$(MODULES),modules/$(mod))
 
 TARGET = /kb/deployment
 DEPLOY_RUNTIME = /kb/runtime
-DEPLOY_TARGET ?= $(KB_OVERRIDE_TOP)
-DEPLOY_TARGET ?= $(TARGET)
+DEPLOY_TARGET := $(or $(KB_OVERRIDE_TOP),$(TARGET))
 
 all: build_modules
 
