@@ -15,7 +15,7 @@ https://github.com/PATRIC3/p3_mlst \
 https://github.com/olsonanl/p3_seed_server \
 https://github.com/olsonanl/strep_repeats \
 https://github.com/TheSEED/typecomp \
-https://github.com/PATRIC3/Workspace ; do
+https://github.com/olsonanl/Workspace ; do
 
     echo $i
 git clone $i
