@@ -1,0 +1,21 @@
+#!/bin/sh
+
+for i in \
+https://github.com/TheSEED/app_service \
+https://github.com/PATRIC3/codon_trees.git \
+https://github.com/TheSEED/genome_annotation \
+https://github.com/PATRIC3/genome_report.git \
+https://github.com/olsonanl/handle_service \
+https://github.com/olsonanl/kmer_annotation_figfam \
+https://github.com/PATRIC3/p3_auth \
+https://github.com/PATRIC3/p3diffexp.git \
+https://github.com/PATRIC3/p3_minhash \
+https://github.com/PATRIC3/p3_mlst \
+https://github.com/olsonanl/p3_seed \
+https://github.com/olsonanl/strep_repeats \
+https://github.com/TheSEED/typecomp \
+https://github.com/PATRIC3/Workspace ; do
+
+    echo $i
+git clone $i
+done 
