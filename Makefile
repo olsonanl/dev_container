@@ -134,7 +134,7 @@ deploy-user-env:
 
 # this is called by the default target (make with no target provided)
 # the modules will be deployed in the dev_container
-# make the necessary directoris
+# make the necessary directories
 # loop over each module and call its make file with no target (default target)
 build_modules:
 	if [ ! -d bin ] ; then mkdir bin ; fi
