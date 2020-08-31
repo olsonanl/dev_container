@@ -44,7 +44,7 @@ for var in $PATH_ADDITIONS ; do
 done
 
 cat >> $dst <<EOF
-python $src "\$@"
+python2 $src "\$@"
 EOF
 
 chmod +x $dst
