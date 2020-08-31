@@ -30,13 +30,20 @@ else
 fi
 
 
-cat > $dst <<EOF
+cat > $dst <<EOF1
 #!/bin/sh
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
 export KB_PYTHON_PATH=$pythonpath
 export PATH=$runtime/bin:$top/bin:\$PATH
 export PYTHONPATH=$pythonpath:\$PYTHONPATH
+EOF1
+
+for var in $PATH_ADDITIONS ; do
+    echo "export PATH=$var:\$PATH" >> $dst
+done
+
+cat >> $dst <<EOF
 python $src "\$@"
 EOF
 
