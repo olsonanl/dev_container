@@ -4,7 +4,12 @@ endif
 
 RUNTIME_BIN = $(shell if [[ -x $(KB_RUNTIME)/bin/perl ]] ; then echo $(KB_RUNTIME)/bin ; else echo $(DEPLOY_RUNTIME)/bin ; fi )
 PERL = $(RUNTIME_BIN)/perl
+
+ifeq ($(KB_RUNTIME),/usr)
+TPAGE = tpage
+else
 TPAGE = $(RUNTIME_BIN)/tpage
+endif
 
 SERVICE_USER = kbase
 
@@ -25,6 +30,9 @@ DEPLOY_PERL = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PERL))))
 WRAP_PYTHON_TOOL = wrap_python
 WRAP_PYTHON_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_PYTHON_TOOL).sh
 
+WRAP_PYTHON3_TOOL = wrap_python3
+WRAP_PYTHON3_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_PYTHON3_TOOL).sh
+
 SRC_PYTHON = $(wildcard scripts/*.py)
 BIN_PYTHON = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_PYTHON))))
 
@@ -37,6 +45,14 @@ SRC_SH = $(wildcard scripts/*.sh)
 BIN_SH = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_SH))))
 
 DEPLOY_SH = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_SH))))
+
+WRAP_NODEJS_TOOL = wrap_nodejs
+WRAP_NODEJS_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_NODEJS_TOOL).sh
+
+SRC_NODEJS = $(wildcard scripts/*.js)
+BIN_NODEJS = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_NODEJS))))
+
+DEPLOY_NODEJS = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_NODEJS))))
 
 WRAP_R_TOOL = wrap_rscript
 WRAP_R_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_R_TOOL).sh

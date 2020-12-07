@@ -1,5 +1,5 @@
 #
-# Wrap a python script for execution in the development runtime environment.
+# Wrap a nodejs script for execution in the development runtime environment.
 #
 
 if [ $# -ne 2 ] ; then
@@ -9,7 +9,6 @@ fi
 
 src=$1
 dst=$2
-
 
 if [ "$KB_OVERRIDE_TOP" != "" ] ; then
     top=$KB_OVERRIDE_TOP
@@ -23,28 +22,20 @@ else
     runtime=$KB_RUNTIME
 fi
 
-if [ "$KB_OVERRIDE_PYTHON_PATH" != "" ] ; then
-    pythonpath=$KB_OVERRIDE_PYTHON_PATH
-else
-    pythonpath=$KB_PYTHON_PATH
-fi
-
-
 cat > $dst <<EOF1
 #!/bin/sh
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
-export KB_PYTHON_PATH=$pythonpath
 export PATH=$runtime/bin:$top/bin:\$PATH
-export PYTHONPATH=$pythonpath:\$PYTHONPATH
 EOF1
-
-for var in $PATH_ADDITIONS ; do
-    echo "export PATH=$var:\$PATH" >> $dst
+for var in $WRAP_VARIABLES ; do
+	val=${!var}
+	if [ "$val" != "" ] ; then
+		echo "export $var='$val'" >> $dst
+	fi
 done
-
 cat >> $dst <<EOF
-python2 $src "\$@"
+$NODE $src "\$@"
 EOF
 
 chmod +x $dst

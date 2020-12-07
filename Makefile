@@ -7,10 +7,15 @@ MODULES = $(shell $(TOOLS_DIR)/module-order modules)
 MODULE_DIRS = $(foreach mod,$(MODULES),modules/$(mod))
 
 #
-# Default deplyment target. May be overridden to deploy to an alternative location.
+# Default deployment target. May be overridden to deploy to an alternative location.
 #
+# DEPLOY_TARGET is what is written into the deployed files. Used for generating
+# deployments that eventually install into a location different than the build.
+#
+
 TARGET = /kb/deployment
 DEPLOY_RUNTIME = /kb/runtime
+DEPLOY_TARGET := $(or $(KB_OVERRIDE_TOP),$(TARGET))
 
 all: build_modules
 
@@ -39,7 +44,7 @@ deploy: deploy-setup
 
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
-			(cd $$m; make deploy TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
+			(cd $$m; make deploy TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) DEPLOY_TARGET=$(DEPLOY_TARGET) ); \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
 			fi  \
@@ -55,7 +60,7 @@ deploy-client: deploy-setup
 
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
-			(cd $$m; make deploy-client TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
+			(cd $$m; make deploy-client TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) DEPLOY_TARGET=$(DEPLOY_TARGET) ); \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
 			fi  \
@@ -71,7 +76,7 @@ deploy-all: deploy-setup
 
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
-			(cd $$m; make deploy-all TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ); \
+			(cd $$m; make deploy-all TARGET=$(TARGET) DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) DEPLOY_TARGET=$(DEPLOY_TARGET) ); \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
 			fi  \
@@ -83,9 +88,9 @@ deploy-user-env:
 
 	dest=$(TARGET)/user-env.sh; \
 	q='"'; \
-	echo "export KB_TOP=$$q$(TARGET)$$q" > $$dest; \
+	echo "export KB_TOP=$$q$(DEPLOY_TARGET)$$q" > $$dest; \
 	echo "export KB_RUNTIME=$$q$(DEPLOY_RUNTIME)$$q" >> $$dest; \
-	echo "export KB_PERL_PATH=$$q$(TARGET)/lib$$q" >> $$dest; \
+	echo "export KB_PERL_PATH=$$q$(DEPLOY_TARGET)/lib$$q" >> $$dest; \
 	echo "export PERL5LIB=\$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; \
 	echo "export PYTHONPATH=$$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest; \
 	echo "export R_LIBS=$$q\$$KB_PERL_PATH:\$$KB_R_PATH$$q" >> $$dest; \
@@ -95,9 +100,9 @@ deploy-user-env:
 
 	dest=$(TARGET)/user-env.csh; \
 	q='"'; \
-	echo "setenv KB_TOP $$q$(TARGET)$$q" > $$dest; \
+	echo "setenv KB_TOP $$q$(DEPLOY_TARGET)$$q" > $$dest; \
 	echo "setenv KB_RUNTIME $$q$(DEPLOY_RUNTIME)$$q" >> $$dest; \
-	echo "setenv KB_PERL_PATH $$q$(TARGET)/lib$$q" >> $$dest; \
+	echo "setenv KB_PERL_PATH $$q$(DEPLOY_TARGET)/lib$$q" >> $$dest; \
 	echo "setenv PERL5LIB \$${KB_PERL_PATH}:\$$KB_PERL_PATH/perl5" >> $$dest; \
 	echo "if (\$$?PYTHONPATH) then" >> $$dest; \
 	echo "   setenv PYTHONPATH $$q\$${KB_PERL_PATH}:\$$PYTHONPATH$$q" >> $$dest; \
@@ -115,21 +120,21 @@ deploy-user-env:
 
 	dest=$(TARGET)/service-env.sh ; \
 	q='"'; \
-	echo "source $(TARGET)/user-env.sh;" > $$dest; \
-	echo "for i in $(TARGET)/services/*/bin; do" >> $$dest; \
+	echo "source $(DEPLOY_TARGET)/user-env.sh;" > $$dest; \
+	echo "for i in $(DEPLOY_TARGET)/services/*/bin; do" >> $$dest; \
 	echo "   export PATH=$q\$${PATH}:\$$i$q;" >> $$dest; \
 	echo "done" >> $$dest
 
 	dest=$(TARGET)/service-env.csh ; \
 	q='"'; \
-	echo "source $(TARGET)/user-env.csh;" > $$dest; \
-	echo "foreach i ($(TARGET)/services/*/bin)" >> $$dest; \
+	echo "source $(DEPLOY_TARGET)/user-env.csh;" > $$dest; \
+	echo "foreach i ($(DEPLOY_TARGET)/services/*/bin)" >> $$dest; \
 	echo "   setenv PATH $q\$${PATH}:\$$i$q;" >> $$dest; \
 	echo "end" >> $$dest
 
 # this is called by the default target (make with no target provided)
 # the modules will be deployed in the dev_container
-# make the necessary directoris
+# make the necessary directories
 # loop over each module and call its make file with no target (default target)
 build_modules:
 	if [ ! -d bin ] ; then mkdir bin ; fi
@@ -147,7 +152,7 @@ test:
 	# foreach module in modules, call make test on that module
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
-			(cd $$m; make test DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) ) ; \
+			(cd $$m; make test DEPLOY_RUNTIME=$(DEPLOY_RUNTIME) DEPLOY_TARGET=$(DEPLOY_TARGET) ) ; \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
 			fi \
