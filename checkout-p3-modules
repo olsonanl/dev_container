@@ -1,5 +1,9 @@
 #!/bin/sh
 
+if [[ -d modules ]] ; then
+    cd modules
+fi
+
 for i in \
 https://github.com/PATRIC3/p3_auth \
 https://github.com/PATRIC3/p3_cli \
