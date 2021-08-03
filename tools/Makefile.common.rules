@@ -54,7 +54,7 @@ deploy-r-scripts:
 	if [ "$(KB_OVERRIDE_TOP)" != "" ] ; then sbase=$(KB_OVERRIDE_TOP) ; else sbase=$(TARGET); fi; \
 	export KB_TOP=$(TARGET); \
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
-	export KB_R_PATH=$(TARGET)/lib ; \
+	export KB_R_PATH=$(TARGET)/lib:$(KB_RUNTIME)/lib/R/library ; \
 	for src in $(SRC_R) ; do \
 		basefile=`basename $$src`; \
 		base=`basename $$src .R`; \
