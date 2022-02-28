@@ -35,7 +35,7 @@ cat > $dst <<EOF1
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
 export KB_PYTHON_PATH=$pythonpath
-export PATH=\"$runtime/bin:$top/bin:\$PATH\"
+export PATH="$runtime/bin:$top/bin:\$PATH"
 export PYTHONPATH=$pythonpath:\$PYTHONPATH
 EOF1
 

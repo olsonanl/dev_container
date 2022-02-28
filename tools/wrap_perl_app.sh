@@ -17,7 +17,7 @@ dir=\`cd "\$dir/../.."; pwd\`
 
 export KB_TOP="\$dir/deployment"
 export KB_RUNTIME="\$dir/runtime"
-export PATH=\"\$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH\"
+export PATH="\$KB_RUNTIME/bin:\$KB_TOP/bin:\$PATH"
 export PERL5LIB="\$KB_TOP/lib"
 "\$KB_RUNTIME/bin/perl" "\$KB_TOP/plbin/$script" "\$@"
 EOF
