@@ -27,7 +27,7 @@ cat > $dst <<EOF
 #!/bin/sh
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
-export PATH=$runtime/bin:$top/bin:\$PATH
+export PATH=\"$runtime/bin:$top/bin:\$PATH\"
 export R_LIBS=$KB_R_PATH
 Rscript --vanilla $src "\$@"
 EOF
