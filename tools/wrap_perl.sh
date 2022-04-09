@@ -34,7 +34,7 @@ cat > $dst <<EOF1
 #!/bin/sh
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
-export PATH=$runtime/bin:$top/bin:\$PATH
+export PATH="$runtime/bin:$top/bin:\$PATH"
 export PERL5LIB=$perlpath
 EOF1
 for var in $WRAP_VARIABLES ; do
