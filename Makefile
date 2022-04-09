@@ -141,7 +141,7 @@ build_modules:
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
 			echo "Build $$m" ; \
-			(cd $$m; make ) ; \
+			(cd $$m; make $$(test -f BuildOptions && cat BuildOptions) ) ; \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
 			fi \
