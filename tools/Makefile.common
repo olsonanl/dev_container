@@ -14,6 +14,7 @@ endif
 SERVICE_USER = kbase
 
 BIN_DIR = $(TOP_DIR)/bin
+CGI_BIN_DIR = $(TOP_DIR)/cgi-bin
 TOOLS_DIR = $(TOP_DIR)/tools
 LIBEXEC_DIR = $(KB_TOP)/libexec
 

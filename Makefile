@@ -28,6 +28,7 @@ deploy-setup: deploy-dirs deploy-user-env
 deploy-dirs:
 	-mkdir $(TARGET)
 	-mkdir $(TARGET)/bin
+	-mkdir $(TARGET)/cgi-bin
 	-mkdir $(TARGET)/lib
 	-mkdir $(TARGET)/plbin
 	-mkdir $(TARGET)/pybin
