@@ -252,7 +252,7 @@ done
 # Construct rscript path
 #
 
-rscript_lib=""
+rscript_lib="$rt_dir/lib/R/library"
 for moddir in modules/* ; do
     p=$top_dir/$moddir/lib
     if [ -d $p ] ; then
