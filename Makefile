@@ -139,10 +139,11 @@ deploy-user-env:
 # loop over each module and call its make file with no target (default target)
 build_modules:
 	if [ ! -d bin ] ; then mkdir bin ; fi
+	if [ ! -d cgi-bin ] ; then mkdir cgi-bin ; fi
 	for m in $(MODULE_DIRS); do \
 		if [ -d $$m ] ; then \
 			echo "Build $$m" ; \
-			(cd $$m; make ) ; \
+			(cd $$m; make $$(test -f BuildOptions && cat BuildOptions) ) ; \
 			if [ $$? -ne 0 ] ; then \
 				exit 1 ; \
 			fi \
