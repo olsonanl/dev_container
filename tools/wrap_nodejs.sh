@@ -35,7 +35,7 @@ for var in $WRAP_VARIABLES ; do
 	fi
 done
 cat >> $dst <<EOF
-$NODE $src "\$@"
+exec $NODE $src "\$@"
 EOF
 
 chmod +x $dst

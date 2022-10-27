@@ -50,7 +50,7 @@ for var in $PERL5LIB_ADDITIONS ; do
     echo "export PERL5LIB=$var:\$PERL5LIB" >> $dst
 done
 cat >> $dst <<EOF
-$runtime/bin/perl $src "\$@"
+exec $runtime/bin/perl $src "\$@"
 EOF
 
 chmod +x $dst
