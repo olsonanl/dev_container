@@ -34,7 +34,7 @@ cat > $dst <<EOF1
 #!/bin/sh
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
-export PATH=$runtime/bin:$top/bin:\$PATH
+export PATH="$runtime/bin:$top/bin:\$PATH"
 export PERL5LIB=$perlpath
 EOF1
 for var in $WRAP_VARIABLES ; do
@@ -50,7 +50,7 @@ for var in $PERL5LIB_ADDITIONS ; do
     echo "export PERL5LIB=$var:\$PERL5LIB" >> $dst
 done
 cat >> $dst <<EOF
-$runtime/bin/perl $src "\$@"
+exec $runtime/bin/perl $src "\$@"
 EOF
 
 chmod +x $dst

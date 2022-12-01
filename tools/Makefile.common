@@ -13,7 +13,10 @@ endif
 
 SERVICE_USER = kbase
 
+APP_SERVICE = app_service
+
 BIN_DIR = $(TOP_DIR)/bin
+CGI_BIN_DIR = $(TOP_DIR)/cgi-bin
 TOOLS_DIR = $(TOP_DIR)/tools
 LIBEXEC_DIR = $(KB_TOP)/libexec
 
@@ -24,8 +27,11 @@ WRAP_PERL_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_PERL_TOOL).sh
 
 SRC_PERL = $(wildcard scripts/*.pl)
 BIN_PERL = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_PERL))))
-
 DEPLOY_PERL = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PERL))))
+
+SRC_SERVICE_PERL = $(wildcard service-scripts/*.pl)
+BIN_SERVICE_PERL = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_SERVICE_PERL))))
+DEPLOY_SERVICE_PERL = $(addprefix $(SERVICE_DIR)/bin/,$(basename $(notdir $(SRC_SERVICE_PERL))))
 
 WRAP_PYTHON_TOOL = wrap_python
 WRAP_PYTHON_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_PYTHON_TOOL).sh
@@ -35,7 +41,6 @@ WRAP_PYTHON3_SCRIPT = bash $(TOOLS_DIR)/$(WRAP_PYTHON3_TOOL).sh
 
 SRC_PYTHON = $(wildcard scripts/*.py)
 BIN_PYTHON = $(addprefix $(BIN_DIR)/,$(basename $(notdir $(SRC_PYTHON))))
-
 DEPLOY_PYTHON = $(addprefix $(TARGET)/bin/,$(basename $(notdir $(SRC_PYTHON))))
 
 WRAP_SH_TOOL = wrap_sh

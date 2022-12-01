@@ -26,7 +26,7 @@ cat > $dst <<EOF1
 #!/bin/sh
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
-export PATH=$runtime/bin:$top/bin:\$PATH
+export PATH="$runtime/bin:$top/bin:\$PATH"
 EOF1
 for var in $WRAP_VARIABLES ; do
 	val=${!var}
@@ -35,7 +35,7 @@ for var in $WRAP_VARIABLES ; do
 	fi
 done
 cat >> $dst <<EOF
-$NODE $src "\$@"
+exec $NODE $src "\$@"
 EOF
 
 chmod +x $dst
