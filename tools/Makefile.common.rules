@@ -68,7 +68,7 @@ deploy-service-scripts:
 	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
 	export KB_PERL_PATH=$(TARGET)/lib ; \
 	export KB_PYTHON_PATH=$(TARGET)/lib ; \
-	if [[ "$(TARGET_VENV)" -ne "" ]] ; then \
+	if [[ "$(TARGET_VENV)" != "" ]] ; then \
 		export PATH_ADDITIONS=$(TARGET_VENV)/app-bin; \
 	fi; \
 	for src in $(SRC_SERVICE_PYTHON) ; do \
