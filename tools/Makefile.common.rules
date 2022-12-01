@@ -63,6 +63,33 @@ deploy-r-scripts:
 		$(WRAP_R_SCRIPT) "$$sbase/rsbin/$$basefile" $(TARGET)/bin/$$base ; \
 	done
 
+deploy-service-scripts:
+	export KB_TOP=$(TARGET); \
+	export KB_RUNTIME=$(DEPLOY_RUNTIME); \
+	export KB_PERL_PATH=$(TARGET)/lib ; \
+	export KB_PYTHON_PATH=$(TARGET)/lib ; \
+	if [[ "$(TARGET_VENV)" -ne "" ]] ; then \
+		export PATH_ADDITIONS=$(TARGET_VENV)/app-bin; \
+	fi; \
+	for src in $(SRC_SERVICE_PYTHON) ; do \
+	        basefile=`basename $$src`; \
+	        base=`basename $$src .py`; \
+	        echo install $$src $$base ; \
+	        cp $$src $(TARGET)/pybin ; \
+	        $(WRAP_PYTHON3_SCRIPT) "$(TARGET)/pybin/$$basefile" $(TARGET)/bin/$$base ; \
+	done; \
+	for src in $(SRC_SERVICE_PERL) ; do \
+	        basefile=`basename $$src`; \
+	        base=`basename $$src .pl`; \
+	        echo install $$src $$base ; \
+	        cp $$src $(TARGET)/plbin ; \
+	        $(WRAP_PERL_SCRIPT) "$(TARGET)/plbin/$$basefile" $(TARGET)/bin/$$base ; \
+	done
+
+deploy-specs:
+	mkdir -p $(TARGET)/services/$(APP_SERVICE)
+	rsync -arv app_specs $(TARGET)/services/$(APP_SERVICE)/.
+
 deploy-libs:
 	rsync --exclude '*.bak*' -arv lib/. $(TARGET)/lib/.
 
@@ -86,6 +113,12 @@ $(BIN_DIR)/%: scripts/%.py
 
 $(BIN_DIR)/%: scripts/%.R $(TOP_DIR)/user-env.sh
 	$(WRAP_R_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
+
+$(BIN_DIR)/%: service-scripts/%.pl $(TOP_DIR)/user-env.sh
+	$(WRAP_PERL_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
+
+$(BIN_DIR)/%: service-scripts/%.py $(TOP_DIR)/user-env.sh
+	$(WRAP_PYTHON3_SCRIPT) '$$KB_TOP/modules/$(CURRENT_DIR)/$<' $@
 
 %.class: %.java
 	 $(JAVAC) $(JAVAC_FLAGS) $<
