@@ -31,7 +31,7 @@ fi
 
 
 cat > $dst <<EOF
-#!/bin/sh
+#!/bin/bash
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
 export PATH="$runtime/bin:$top/bin:\$PATH"
