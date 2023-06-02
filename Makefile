@@ -1,6 +1,8 @@
 TOP_DIR = $(KB_TOP)
 include tools/Makefile.common
 
+SHELL = /bin/bash
+
 #MODULE_DIRS = $(wildcard modules/*)
 #MODULES = $(notdir $(MODULE_DIRS))
 MODULES = $(shell $(TOOLS_DIR)/module-order modules)

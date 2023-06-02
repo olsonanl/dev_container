@@ -31,7 +31,7 @@ fi
 
 
 cat > $dst <<EOF1
-#!/bin/sh
+#!/bin/bash
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
 export KB_PYTHON_PATH=$pythonpath
