@@ -34,6 +34,7 @@ cat > $dst <<EOF1
 #!/bin/sh
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
+export KB_MODULE_DIR=$CURRENT_DIR
 export PATH="$runtime/bin:$top/bin:\$PATH"
 export PERL5LIB=$perlpath
 EOF1

@@ -1,3 +1,5 @@
+export CURRENT_DIR
+
 deploy-wft:
 	mkdir -p $(TARGET)/lib/Bio/KBase/$(SERVICE_NAME)/
 	cp wft/*.template $(TARGET)/lib/Bio/KBase/$(SERVICE_NAME)/
