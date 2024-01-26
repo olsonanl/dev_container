@@ -30,28 +30,37 @@ E.g.:
 
         export TARGET="deployment"
 
-with the path to where you would like to deploy.
+    . . . with the path to where you would like to deploy.
 
-2. Run the *bootstrap* script with the path to a "runtime directory"
-as the first argument. 
+2. Run the [bootstrap](bootstrap) script with the path to a "runtime directory"
+as the first argument (E.g. `/kb/runtime`). The following variable
+also appears to be relevant for the Makefile.
+E.g.:
 
-        $ ./bootstrap /kb/runtime
+        $ export DEPLOY_RUNTIME="/opt/patric-common/runtime"
+        $ ./bootstrap $DEPLOY_RUNTIME
 
 3. Source the *user-env.sh* script in the "development directory".
 This file is created during the bootstrap script in step 2.
 
         $ source user-env.sh
 
-4.	Option step if no modules have been cloned into the modules 
+4.	Optional step if no modules have been cloned into the modules
 sub directory. This will create directories and files in the deployment
-directory for every module.
+directory for every module. It might be best to skip this step right now,
+as the current Makefile appears to not work.
 
         $ make deploy
 
-5. Clone "module repositories" into the modules directory:
+5. Clone "module repositories" into the modules directory. If you have
+a common set of modules you often need, you can create a script to
+clone all of those first, like [checkout-p3-modules](checkout-p3-modules).
+You can add an additional helper script like that, including any modules
+you need for current development. Otherwise just manually clone, like so:
 
         $ cd modules
         $ git clone kbase@git.kbase.us:idserver.git
+
 
 6. Do development work in a module.
 
