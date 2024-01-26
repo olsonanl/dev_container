@@ -2,26 +2,33 @@ Development Container
 =====================
 
 This repository is a container for developing KBase modules.
+A “dev container” can be thought of as a directory in the
+file system where developers develop code. A clone of this repo
+will become a dev container you can work from within.
 To use this, you must already have a "runtime" directory, which
-contains the neccesary binaries and libraries. For an idea of
+contains the neccesary binaries and libraries. One way to get/have this
+is from a Singularity image file (sif) with one packaged inside.
+(E.g. /vol/patric3/production/containers/bvbrc-build-352.sif)
+For an idea of
 what is expected to be in this runtime, consult the [bootstrap
-repository](https://git.kbase.us/bootstrap.git/).
+repository](https://github.com/olsonanl/bootstrap).
 
 Usage
 -----
 
 0. Clone this repository onto your development machine:
 
-        $ git clone https://githhub.com/kbase/dev_container
+        $ git clone https://github.com/PATRIC3/dev_container
         $ cd dev_container
 
 1. The "deployment directory" needs to be a directory where you
 have permissions to write. By default, this is a directory called
 /kb/deployment.  If you have sufficient permissions to create this
-directory, then you may skip this step.  To change the directory, 
-open the "Makefile" and replace:
+directory, then you may skip this step. To override that default
+set in the [Makefile](Makefile), you can set your own `TARGET`.
+E.g.:
 
-        TARGET = /kb/deployment
+        export TARGET="deployment"
 
 with the path to where you would like to deploy.
 
