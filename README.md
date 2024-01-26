@@ -59,7 +59,7 @@ You can add an additional helper script like that, including any modules
 you need for current development. Otherwise just manually clone, like so:
 
         $ cd modules
-        $ git clone kbase@git.kbase.us:idserver.git
+        $ git clone git@github.com:PATRIC3/p3_fqutils.git
 
 
 6. Do development work in a module.
