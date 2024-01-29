@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [[ -d modules ]] ; then
+if [ -d modules ] ; then
     cd modules
 fi
 
