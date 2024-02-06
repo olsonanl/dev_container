@@ -38,7 +38,7 @@ also appears to be relevant for the Makefile.
 E.g.:
 
         $ export DEPLOY_RUNTIME="/opt/patric-common/runtime"
-        $ ./bootstrap $DEPLOY_RUNTIME
+        $ KB_IGNORE_MISSING_DEPENDENCIES=1 ./bootstrap $DEPLOY_RUNTIME
 
 3. Source the *user-env.sh* script in the "development directory".
 This file is created during the bootstrap script in step 2.
