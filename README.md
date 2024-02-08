@@ -16,9 +16,10 @@ repository](https://github.com/olsonanl/bootstrap).
 
 1. Shell into a container with a recent image.
    ```bash
-   LATEST_SIF="$(ls -t /vol/patric3/production/containers/bvbrc-build-*.sif | head -n 1)"
+   LATEST_SIF="$(ls -t /vol/patric3/production/containers/bvbrc-dev-*.sif | head -n 1)"
    TMP="/disks/tmp"
    [ $(hostname) == bio-gp1.mcs.anl.gov ] && TMP="/tmp"
+   echo shelling into $LATEST_SIF
    singularity shell --bind $TMP:/tmp,/vol,/home,/homes $LATEST_SIF
    ```
 
