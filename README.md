@@ -43,7 +43,8 @@ E.g.:
    ```
 
 4. Run the [bootstrap](bootstrap) script with the path to a "runtime directory"
-as the first argument (E.g. `/kb/runtime`). The following `DEPLOY_RUNTIME` variable
+as the first argument (E.g. `/kb/runtime`). Here we will use the one provisioned
+inside the sif image. The following `DEPLOY_RUNTIME` variable
 also appears to be relevant for the deployment targets in the [Makefile](Makefile).
 E.g.:
    ```bash
