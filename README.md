@@ -17,10 +17,8 @@ repository](https://github.com/olsonanl/bootstrap).
 1. Shell into a container with a recent image.
    ```bash
    LATEST_SIF="$(ls -t /vol/patric3/production/containers/bvbrc-dev-*.sif | head -n 1)"
-   TMP="/disks/tmp"
-   [ $(hostname) == bio-gp1.mcs.anl.gov ] && TMP="/tmp"
    echo shelling into $LATEST_SIF
-   singularity shell --bind $TMP:/tmp,/vol,/home,/homes $LATEST_SIF
+   singularity shell --bind /disks/tmp:/tmp,/vol,/home,/homes $LATEST_SIF
    ```
 
 2. Clone this repository onto your development host.
@@ -88,9 +86,14 @@ as the current Makefile appears to not work.
    make deploy
    ```
 
-8. Do development work in a module.
+8. Do development work in a module. Repeat steps 4 - 6. (7?) as necessary.
+   - Any new scripts in any module `script` directories will require a `make` run for/in that module.
+   This would always be the case if a new module is added.
+   - Run any scripts using their generated wrapper, which should be in the `PATH`.
+   E.g. `run-me.pl` should be run with `run-me`. This will test the intended call stack, as well as
+   testing this `make` machinery.
+   - Re-run the `bootstrap` and `user-env.*` sourcing when adding modules to [modules](modules).
 
-9. Repeat steps 4 - 6. (7?) as necessary. E.g., if you clone in a new repo.
 
 ### Definitions
 
