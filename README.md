@@ -38,8 +38,9 @@ E.g.:
    ```bash
     ./checkout-p3-modules
     # Manual clone
-    cd modules
+    pushd modules
     git clone git@github.com:PATRIC3/p3_fqutils.git
+    popd
    ```
 
 4. Run the [bootstrap](bootstrap) script with the path to a "runtime directory"
