@@ -58,6 +58,8 @@ This file is created during the bootstrap script step.
 
 6. Build the modules. The current [Makefile](Makefile) default target (`all`) runs the `build_modules` target.
     ```bash
+    # if these steps were run before, start with an empty bin dir
+    rm /bin/*
     make
     # same as . . .
     # make build_modules
