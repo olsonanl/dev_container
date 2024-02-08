@@ -6,8 +6,8 @@ file system where developers develop code. A clone of this repo
 will become a dev container you can work from within.
 To use this, you must already have a "runtime" directory, which
 contains the neccesary binaries and libraries. One way to get/have this
-is from a Singularity image file (sif) with one packaged inside.
-(E.g. /vol/patric3/production/containers/bvbrc-build-352.sif)
+is from a Singularity image file (sif) with one packaged inside
+(E.g. /vol/patric3/production/containers/bvbrc-dev-357.sif).
 For an idea of
 what is expected to be in this runtime, consult the [bootstrap
 repository](https://github.com/olsonanl/bootstrap).
