@@ -1,6 +1,6 @@
 # Development Container
 
-This repository is a container for developing KBase modules.
+This repository is a container for developing BV-BRC modules.
 A “dev container” can be thought of as a directory in the
 file system where developers develop code. A clone of this repo
 will become a dev container you can work from within.
@@ -14,7 +14,7 @@ repository](https://github.com/olsonanl/bootstrap).
 
 ## Usage
 
-1. Shell into a container with a recent image.
+1. Shell into a container with a recent development image.
    ```bash
    LATEST_SIF="$(ls -t /vol/patric3/production/containers/bvbrc-dev-*.sif | head -n 1)"
    echo shelling into $LATEST_SIF
@@ -42,7 +42,7 @@ E.g.:
    ```
 
 4. Run the [bootstrap](bootstrap) script with the path to a "runtime directory"
-as the first argument (E.g. `/kb/runtime`). Here we will use the one provisioned
+as the first argument. Here we will use the one provisioned
 inside the sif image. The following `DEPLOY_RUNTIME` variable
 also appears to be relevant for the deployment targets in the [Makefile](Makefile).
 E.g.:
@@ -86,25 +86,24 @@ as the current Makefile appears to not work.
    make deploy
    ```
 
-8. Develop and test a module. Repeat steps 4 - 6. (7?) as necessary.
+8. Develop and test (a) module(s). Repeat steps 4 - 6. (7?) as necessary.
    - Any new scripts in any module `script` directories will require a `make` run for/in that module.
    This would always be the case when a new module is added.
    - Re-run the `bootstrap` and `user-env.*` sourcing when adding modules to [modules](modules).
-   - __Note:__ Run any scripts using their generated wrapper, which should be in the `PATH`.
+   - __Note:__ Run any module `script`s using their generated wrapper, which should be in the executable `PATH`.
    E.g. `run-me.pl` should be run with `run-me`. This will test the intended call stack, as well as
    testing this `make` machinery.
 
 
 ### Definitions
 
-* runtime directory: By default this is /kb/runtime.  
-This is a directory that contains "bin", "lib",
+* runtime directory: This is a directory that contains "bin", "lib",
 "man", "etc" subdirectories containing third*party software that
-KBase repositories depend upon. E.g. a perl binary and Perl modules.
+BV-BRC repositories depend upon (default: `/kb/runtime`). E.g. a perl binary and Perl modules.
 See the [bootstrap repository](https://github.com/olsonanl/bootstrap.git) for what normally goes here.
 
 * deployment directory: This is the directory that contains "bin",
-"lib", "man", "etc" subdirectories for KBase developed code.
+"lib", "man", "etc" subdirectories for BV-BRC developed code.
 
 * development directory: This is the directory where new code is
 written and developed.  It is customary for modules to be cloned
