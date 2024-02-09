@@ -86,13 +86,13 @@ as the current Makefile appears to not work.
    make deploy
    ```
 
-8. Do development work in a module. Repeat steps 4 - 6. (7?) as necessary.
+8. Develop and test a module. Repeat steps 4 - 6. (7?) as necessary.
    - Any new scripts in any module `script` directories will require a `make` run for/in that module.
-   This would always be the case if a new module is added.
-   - Run any scripts using their generated wrapper, which should be in the `PATH`.
+   This would always be the case when a new module is added.
+   - Re-run the `bootstrap` and `user-env.*` sourcing when adding modules to [modules](modules).
+   - __Note:__ Run any scripts using their generated wrapper, which should be in the `PATH`.
    E.g. `run-me.pl` should be run with `run-me`. This will test the intended call stack, as well as
    testing this `make` machinery.
-   - Re-run the `bootstrap` and `user-env.*` sourcing when adding modules to [modules](modules).
 
 
 ### Definitions
