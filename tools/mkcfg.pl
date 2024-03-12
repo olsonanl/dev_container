@@ -40,7 +40,7 @@ if (-e './deploy.cfg') {
 
 # merge the two configs, issueing a warning if the same key exists with
 # different values between the two config files
-foreach my $key (keys $local_cfg->vars() ) {
+foreach my $key (keys %{$local_cfg->vars()} ) {
     my $global_val = $global_cfg->param($key);
     my $local_val = $local_cfg->param($key);
 
