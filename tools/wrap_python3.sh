@@ -40,7 +40,7 @@ export PYTHONPATH=$pythonpath:\$PYTHONPATH
 EOF1
 
 if [ "$KB_CONDA_BASE" != "" ] ; then
-    echo ". $KB_CONDA_BASE/bin/activate" >> $dst
+    echo ". $KB_CONDA_BASE/bin/activate base" >> $dst
 fi
 if [ "$KB_CONDA_ENV" != "" ] ; then
     echo "conda activate $KB_CONDA_ENV" >> $dst
