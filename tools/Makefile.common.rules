@@ -126,3 +126,11 @@ $(BIN_DIR)/%: service-scripts/%.py $(TOP_DIR)/user-env.sh
 
 %.class: %.java
 	 $(JAVAC) $(JAVAC_FLAGS) $<
+
+src/%.o: src/%.cc
+	 $(CXX) $(CXXFLAGS) -c -o $@ $< -MMD -MP -MF $(basename $@).d
+
+$(BIN_DIR)/%: %
+	cp $< $@
+
+-include $(wildcard src/*.d)
