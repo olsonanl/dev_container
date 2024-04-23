@@ -92,7 +92,7 @@ as the current Makefile appears to not work.
    - Re-run the `bootstrap` and `user-env.*` sourcing when adding modules to [modules](modules).
    - __Note:__ Run any module `script`s using their generated wrapper, which should be in the executable `PATH`.
    E.g. `run-me.pl` should be run with `run-me`. This will test the intended call stack, as well as
-   testing this `make` machinery.
+   testing this `make` machinery. Apparently this is required, as well: `export KB_INTERACTIVE=1`
 
 
 ### Definitions
