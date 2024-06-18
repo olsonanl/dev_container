@@ -31,7 +31,7 @@ fi
 
 
 cat > $dst <<EOF1
-#!/bin/sh
+#!/bin/bash
 export KB_TOP=$top
 export KB_RUNTIME=$runtime
 export KB_PYTHON_PATH=$pythonpath
@@ -39,6 +39,12 @@ export PATH="$runtime/bin:$top/bin:\$PATH"
 export PYTHONPATH=$pythonpath:\$PYTHONPATH
 EOF1
 
+if [ "$KB_CONDA_BASE" != "" ] ; then
+    echo ". $KB_CONDA_BASE/bin/activate base" >> $dst
+fi
+if [ "$KB_CONDA_ENV" != "" ] ; then
+    echo "conda activate $KB_CONDA_ENV" >> $dst
+fi
 for var in $PATH_ADDITIONS ; do
     echo "export PATH=$var:\$PATH" >> $dst
 done

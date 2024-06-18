@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 if [[ -d modules ]] ; then
     cd modules
@@ -6,6 +6,7 @@ fi
 
 for i in \
 https://github.com/PATRIC3/p3_auth \
+https://github.com/BV-BRC/app_service \
 https://github.com/PATRIC3/p3_cli \
 https://github.com/olsonanl/p3_code \
 https://github.com/PATRIC3/p3_core \

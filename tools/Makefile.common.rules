@@ -1,3 +1,5 @@
+export CURRENT_DIR
+
 deploy-wft:
 	mkdir -p $(TARGET)/lib/Bio/KBase/$(SERVICE_NAME)/
 	cp wft/*.template $(TARGET)/lib/Bio/KBase/$(SERVICE_NAME)/
@@ -124,3 +126,11 @@ $(BIN_DIR)/%: service-scripts/%.py $(TOP_DIR)/user-env.sh
 
 %.class: %.java
 	 $(JAVAC) $(JAVAC_FLAGS) $<
+
+src/%.o: src/%.cc
+	 $(CXX) $(CXXFLAGS) -c -o $@ $< -MMD -MP -MF $(basename $@).d
+
+$(BIN_DIR)/%: %
+	cp $< $@
+
+-include $(wildcard src/*.d)
