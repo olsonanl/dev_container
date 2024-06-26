@@ -146,9 +146,7 @@ done
 if [[ `java -version 2>&1` =~ OpenJDK ]] ; then
     for jar in jackson-core.jar jackson-mapper.jar ; do
 	sjar="/usr/share/java/$jar"
-	if [[ ! -f $sjar ]] ; then
-	    echo "Warning: missing jarfile $sjar";
-	else
+	if [[ -f $sjar ]] ; then
 	    classpath="${classpath}:$sjar"
 	fi
     done
@@ -176,26 +174,6 @@ if [ "$JAVA_HOME" = "" ] ; then
     fi
 else
 	java_path="$JAVA_HOME"
-fi
-
-#
-# Configure the appropriate CATALINA_HOME.
-#
-# If we come in with a CATALINA_HOME set, use that. 
-#
-tomcat_path=''
-if [ "$CATALINA_HOME" = "" ] ; then
-    if [ -d "$rt_dir/tomcat" ] ; then
-	elt="\$KB_RUNTIME/tomcat"
-	tomcat_path=$elt
-    elif [ -d "/Library/Tomcat/Home" ] ; then
-	# Mac
-	tomcat_path="/Library/Tomcat/Home"
-    else 
-	echo "CATALINA_HOME not found" 1>&2
-    fi
-else
-	tomcat_path="$CATALINA_HOME"
 fi
 
 modlist=""
