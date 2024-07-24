@@ -1,5 +1,4 @@
 #!/bin/bash
-
 #
 # Installation bootstrap script.
 #
@@ -292,13 +291,16 @@ export KB_RUNTIME="$rt_dir"
 export KB_PERL_PATH=$perl_lib
 export KB_PYTHON_PATH=$python_lib
 export KB_R_PATH=$rscript_lib
-export JAVA_HOME=$java_path
-export CATALINA_HOME=$tomcat_path
+if [ "$java_path" != "" -a -e "$java_path" ] ; then
+    export JAVA_HOME=$java_path
+fi
+if [ -e "$tomcat_path" ] ; then
+    export CATALINA_HOME=$tomcat_path
+fi
 export PATH=$path_str
 export PERL5LIB=\$KB_PERL_PATH
 export PYTHONPATH=\$KB_PYTHON_PATH:\$PYTHONPATH
 export R_LIBS=\$KB_R_PATH:\$R_LIBS
-export GLASSFISH_HOME=\$KB_RUNTIME/glassfish3
 export CLASSPATH=$classpath
 
 if [ -f \$KB_TOP/setenv.sh ] ; then

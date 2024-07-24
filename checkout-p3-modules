@@ -5,17 +5,17 @@ if [[ -d modules ]] ; then
 fi
 
 for i in \
-https://github.com/PATRIC3/p3_auth \
+https://github.com/BV-BRC/p3_auth \
 https://github.com/BV-BRC/app_service \
-https://github.com/PATRIC3/p3_cli \
-https://github.com/olsonanl/p3_code \
-https://github.com/PATRIC3/p3_core \
-https://github.com/olsonanl/p3_deployment \
+https://github.com/BV-BRC/p3_cli \
+https://github.com/BV-BRC/p3_code \
+https://github.com/BV-BRC/p3_core \
+https://github.com/BV-BRC/p3_deployment \
 https://github.com/theseed/seed_core \
 https://github.com/theseed/seed_gjo \
 https://github.com/theseed/seed_rast \
-https://github.com/olsonanl/typecomp \
-https://github.com/olsonanl/Workspace ; do
+https://github.com/BV-BRC/typecomp \
+https://github.com/BV-BRC/Workspace ; do
 
     echo $i
 git clone $i
