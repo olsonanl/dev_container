@@ -37,7 +37,7 @@ for var in $WRAP_VARIABLES ; do
 	fi
 done
 cat >> $dst <<EOF
-/bin/sh $src "\$@"
+/bin/bash $src "\$@"
 EOF
 
 chmod +x $dst
