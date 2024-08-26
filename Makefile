@@ -15,8 +15,8 @@ MODULE_DIRS = $(foreach mod,$(MODULES),modules/$(mod))
 # deployments that eventually install into a location different than the build.
 #
 
-TARGET = /kb/deployment
-DEPLOY_RUNTIME = /kb/runtime
+TARGET ?= /kb/deployment
+DEPLOY_RUNTIME ?= /kb/runtime
 DEPLOY_TARGET := $(or $(KB_OVERRIDE_TOP),$(TARGET))
 
 all: build_modules
@@ -28,8 +28,7 @@ what:
 deploy-setup: deploy-dirs deploy-user-env
 
 deploy-dirs:
-	-mkdir $(TARGET)
-	-mkdir $(TARGET)/bin
+	-mkdir -p $(TARGET)/bin
 	-mkdir $(TARGET)/cgi-bin
 	-mkdir $(TARGET)/lib
 	-mkdir $(TARGET)/plbin
@@ -87,7 +86,7 @@ deploy-all: deploy-setup
 	done
 
 deploy-user-env:
-	-mkdir $(TARGET)
+	-mkdir -p $(TARGET)
 
 	dest=$(TARGET)/user-env.sh; \
 	q='"'; \
@@ -97,9 +96,8 @@ deploy-user-env:
 	echo "export PERL5LIB=\$$KB_PERL_PATH:\$$KB_PERL_PATH/perl5" >> $$dest; \
 	echo "export PYTHONPATH=$$q\$$KB_PERL_PATH:\$$PYTHONPATH$$q" >> $$dest; \
 	echo "export R_LIBS=$$q\$$KB_PERL_PATH:\$$KB_R_PATH$$q" >> $$dest; \
-	echo "if [ -e $$q\$$KB_RUNTIME/java$$q ] ; then export JAVA_HOME=$$q\$$KB_RUNTIME/java$$q ; fi" >> $$dest; \
-	echo "export CATALINA_HOME=$$q\$$KB_RUNTIME/tomcat$$q" >> $$dest; \
-	echo "export PATH=$$q\$$JAVA_HOME/bin:\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest;
+	echo "if [ -e $$q\$$KB_RUNTIME/java$$q ] ; then export JAVA_HOME=$$q\$$KB_RUNTIME/java$$q ; jpath=$$q\$$JAVA_HOME/bin:$$q; fi" >> $$dest; \
+	echo "export PATH=$$q\$$jpath\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest;
 
 	dest=$(TARGET)/user-env.csh; \
 	q='"'; \
@@ -118,7 +116,6 @@ deploy-user-env:
 	echo "    setenv R_LIBS $$q\$${KB_PERL_PATH}$$q" >> $$dest; \
 	echo "endif" >> $$dest; \
 	echo "setenv JAVA_HOME $$q\$$KB_RUNTIME/java$$q" >> $$dest; \
-	echo "setenv CATALINA_HOME $$q\$$KB_RUNTIME/tomcat$$q" >> $$dest; \
 	echo "setenv PATH $$q\$$JAVA_HOME/bin:\$$KB_TOP/bin:\$$KB_RUNTIME/bin:\$$PATH$$q" >> $$dest;
 
 	dest=$(TARGET)/service-env.sh ; \

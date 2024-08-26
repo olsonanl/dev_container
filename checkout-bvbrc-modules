@@ -1,0 +1,10 @@
+#!/bin/bash
+
+if [ -d modules ] ; then
+    cd modules
+fi
+
+for mod in `cat ../core-modules`; do
+    echo Cloning $mod
+    git clone $mod
+done 
