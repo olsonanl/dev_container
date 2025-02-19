@@ -9,8 +9,10 @@ PERL = $(RUNTIME_BIN)/perl
 
 ifeq ($(KB_RUNTIME),/usr)
 TPAGE = tpage
-else
+else ifeq ($(HOMEBREW_FORMULA_PREFIX),,)
 TPAGE = $(RUNTIME_BIN)/tpage
+else
+TPAGE = $(HOMEBREW_FORMULA_PREFIX)/bin/tpage
 endif
 
 SERVICE_USER = kbase
