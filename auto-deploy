@@ -8,9 +8,11 @@ use Cwd 'abs_path';
 my @overrides;
 my $target;
 my @modules;
+my $runtime;
 
 my $rc = GetOptions("target=s" => \$target,
 		    "module=s" => \@modules,
+		    "runtime=s" => \$runtime,
 		    "override=s" => \@overrides);
 
 @ARGV == 2 || @ARGV == 1 or die "Usage: $0 [--module module-dir] [--override key=value] deploy.cfg tag\n";
@@ -40,7 +42,14 @@ else
     $target = $cfg->param('target');
 }
 
-my $runtime = $cfg->param('deploy-runtime');
+if ($runtime)
+{
+    $cfg->param('deploy-runtime', $runtime);
+}
+else
+{
+    $runtime = $cfg->param('deploy-runtime');
+}
 
 my $deployment_config_name = "deployment.cfg";
 
