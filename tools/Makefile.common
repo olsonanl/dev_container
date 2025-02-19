@@ -12,7 +12,7 @@ TPAGE = tpage
 else ifeq ($(HOMEBREW_FORMULA_PREFIX),,)
 TPAGE = $(RUNTIME_BIN)/tpage
 else
-TPAGE = $(HOMEBREW_FORMULA_PREFIX)/bin/tpage
+TPAGE = $(HOMEBREW_FORMULA_PREFIX)/libexec/bin/tpage
 endif
 
 SERVICE_USER = kbase
