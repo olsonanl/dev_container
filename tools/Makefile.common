@@ -9,6 +9,8 @@ PERL = $(RUNTIME_BIN)/perl
 
 ifeq ($(KB_RUNTIME),/usr)
 TPAGE = tpage
+else ifneq ($(HOMEBREW_PREFIX),)
+TPAGE = tpage
 else ifeq ($(HOMEBREW_FORMULA_PREFIX),)
 TPAGE = $(RUNTIME_BIN)/tpage
 else
