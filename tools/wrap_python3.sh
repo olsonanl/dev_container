@@ -39,11 +39,25 @@ export PATH="$runtime/bin:$top/bin:\$PATH"
 export PYTHONPATH=$pythonpath:\$PYTHONPATH
 EOF1
 
-if [ "$KB_CONDA_BASE" != "" ] ; then
-    echo ". $KB_CONDA_BASE/bin/activate base" >> $dst
-fi
 if [ "$KB_CONDA_ENV" != "" ] ; then
-    echo "conda activate $KB_CONDA_ENV" >> $dst
+    cat >> $dst <<'CONDA_ACTIVATE'
+# Activate conda environment by discovering conda base from environment path
+ENV_PATH="__KB_CONDA_ENV__"
+CONDA_BASE=$(grep '# cmd:' "${ENV_PATH}/conda-meta/history" | head -1 | awk '{print $3}' | sed 's|/bin/conda||')
+if [ -z "$CONDA_BASE" ]; then
+    echo "ERROR: Could not determine conda base path from ${ENV_PATH}/conda-meta/history" >&2
+    exit 1
+fi
+CONDA_SH="${CONDA_BASE}/etc/profile.d/conda.sh"
+if [ ! -f "$CONDA_SH" ]; then
+    echo "ERROR: conda.sh not found at ${CONDA_SH}" >&2
+    exit 1
+fi
+. "$CONDA_SH"
+conda activate "$ENV_PATH"
+CONDA_ACTIVATE
+    # Replace placeholder with actual value
+    sed -i "s|__KB_CONDA_ENV__|$KB_CONDA_ENV|g" $dst
 fi
 for var in $PATH_ADDITIONS ; do
     echo "export PATH=$var:\$PATH" >> $dst
