@@ -82,6 +82,18 @@ fi
 #    fail "Runtime directory $rt_dir does not contain an executable javac"
 #fi
 
+#
+# Check for homebrew and the installation of bv-brc-dev
+#
+if [ -x "$rt_dir/bin/brew" ] ; then
+    if $rt_dir/bin/brew info bv-brc-dev > /tmp/brew.$$ ; then
+	echo "Have homebrew"
+	homebrew_dir=`perl -ne 'm#^(/\S+) \([0-9,]+ files# && print "$1\n"' /tmp/brew.$$`
+    fi
+    rm -f /tmp/brew.$$
+fi
+
+
 #if [ ! -x "$rt_dir"/glassfish3/bin/asadmin ] ; then
 #    fail "Runtime directory $rt_dir does not contain an executable asadmin"
 #fi
@@ -142,14 +154,17 @@ done
 # Check for our ubuntu openjdk build. We will need to explicitly
 # add the jackson jars to the classpath. 
 #
-if [[ `java -version 2>&1` =~ OpenJDK ]] ; then
-    for jar in jackson-core.jar jackson-mapper.jar ; do
-	sjar="/usr/share/java/$jar"
-	if [[ -f $sjar ]] ; then
-	    classpath="${classpath}:$sjar"
-	fi
-    done
+if java -version > /tmp/java.$$ 2>&1 ; then
+    if [[ $(cat /tmp/java.$$) =~ OpenJDK ]] ; then
+	for jar in jackson-core.jar jackson-mapper.jar ; do
+	    sjar="/usr/share/java/$jar"
+	    if [[ -f $sjar ]] ; then
+		classpath="${classpath}:$sjar"
+	    fi
+	done
+    fi
 fi
+rm -f /tmp/java.$$ 
 
 #
 # Configure the appropriate JAVA_HOME.
@@ -163,7 +178,10 @@ if [ "$JAVA_HOME" = "" ] ; then
 	elt="\$KB_RUNTIME/java"
 	java_path=$elt
     elif [ -x /usr/libexec/java_home ] ; then
-	java_path=`/usr/libexec/java_home`
+	java_path=`/usr/libexec/java_home 2>&1`
+	if [[ "$java_path" =~ Unable ]] ; then
+	    java_path=''
+        fi
     elif [ -d "/Library/Java/Home" ] ; then
 	# Mac
 	java_path="/Library/Java/Home"
@@ -256,12 +274,17 @@ for script in tools/*.sh ; do
     fi
 done
 
-path_str="\$KB_RUNTIME/bin:\$KB_TOP/bin:\$KB_RUNTIME/glassfish3/bin"
+path_str="\$KB_RUNTIME/bin:\$KB_TOP/bin"
+if [ "x$homebrew_dir" != "x" ] ; then
+    path_str="$path_str:$homebrew_dir/libexec/bin"
+    export PERL5LIB_ADDITIONS="$homebrew_dir/libexec/lib/perl5"
+    perl_lib="$perl_lib:$homebrew_dir/libexec/lib/perl5"
+fi
 if [ "x$JAVA_HOME" != "x" ] ; then
     path_str="$path_str:\$JAVA_HOME/bin"
 fi
 
-path_str="$path_str:\$KB_RUNTIME/thrift/bin:\$PATH"
+path_str="$path_str:\$PATH"
 
 cat > $top_dir/user-env.sh <<EOF
 export KB_TOP=$top_dir
