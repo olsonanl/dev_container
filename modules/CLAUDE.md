@@ -142,21 +142,25 @@ Some modules have their own CLAUDE.md with detailed guidance. Check for module-s
 
 ### BV-BRC-Go-SDK
 
-The Go SDK provides CLI tools that mirror `p3_cli` functionality. Build with:
+The Go SDK provides **101 CLI tools** mirroring `p3_cli`, plus Go library
+packages for programmatic API access. **v1.0.0 released 2026-06-24** — tarballs
+and zips in `BV-BRC-Go-SDK/dist/` for Linux (amd64/arm64), macOS (amd64/arm64),
+and Windows (amd64/arm64). Go packages: `api`, `appservice`, `auth`, `workspace`.
+
+Build:
 ```bash
 cd modules/BV-BRC-Go-SDK
-./build-all.sh           # Build for all platforms
-./build-linux.sh         # Build for Linux only
-make                     # Standard dev_container build
-```
-
-The Go toolchain is not on the default PATH. Use:
-```bash
 export PATH=/home/olson/P3/go-1.25.6/go/bin:$PATH
-go build ./...           # build/verify the whole module
+go build -buildvcs=false ./...   # verify whole module (-buildvcs=false required)
+make                             # dev build to bin/
+VERSION=1.0.0 ./build-linux.sh  # release: Linux amd64+arm64 tarballs + .deb
+VERSION=1.0.0 ./build-macos.sh  # release: macOS amd64+arm64 tarballs
+VERSION=1.0.0 ./build-windows.sh # release: Windows amd64+arm64 .zip
 ```
 
-Go packages: `api`, `appservice`, `auth`, `workspace`
+Note: `build-macos.sh` wipes all of `dist/`; run Linux first, then Mac, then
+Windows (each script only cleans its own platform subdirs except Mac). Or build
+each platform into separate dirs and merge manually.
 
 #### Relationship to p3_cli (porting)
 
