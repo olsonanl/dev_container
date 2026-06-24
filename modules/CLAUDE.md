@@ -188,3 +188,27 @@ are candidates for new Go commands.
   parameter). The authoritative parameter names/types/defaults are in the app's
   `app_specs/<App>.json` (in the service module, e.g. `bvbrc_docking/app_specs/`);
   the Perl script is the source of truth for the option→param mapping.
+
+Build the Go binaries with `-buildvcs=false` (the git+svn mix in this tree breaks
+VCS stamping): `go build -buildvcs=false -o bin/<cmd> ./cmd/<cmd>`.
+
+#### Submit CLI test suite (`test/submit-suite/`)
+
+Python suite that reverse-engineers `p3-submit-*` invocations from the QA app
+parameter fixtures (`/vol/patric3/QA/applications/App-*/tests/*.json`) and checks
+that the Perl and Go front-ends reproduce them via `--dry-run`, cross-checking
+Go-emitted vs Perl-emitted params. Run `python3 run_suite.py` (see its README).
+Results: PASS / MISMATCH (Go≠Perl) / UNSUPPORTED (CLI can't express the params —
+a coverage gap) / SKIP / ERROR. Requires a token; Go stats `ws:` inputs over the
+network (integration, not hermetic). `inverters.py` holds the per-app params→flag
+mapping; add an app there + in `appmap.py`. Note the Perl tools validate genome
+IDs over the network and can stall where the data API is unreachable (hence the
+`--timeout` / `--tool go` options).
+
+#### Data-query options & cursor pagination
+
+`api` supports cursor-based pagination (`QueryWithCursor`/`StreamWithCursor`/
+`QueryCallbackWithCursor`, driven by the `X-Cursor-Mark` header) exposed via the
+`--cursor` flag on `p3-all-*`/`p3-get-*`. Common `DataOptions` (in
+`internal/cli/options.go`) also include `--max-retries`, `--verbose` (retry
+messages to stderr), and `--sort` (prefix `-` for descending).
