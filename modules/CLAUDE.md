@@ -192,6 +192,15 @@ are candidates for new Go commands.
 Build the Go binaries with `-buildvcs=false` (the git+svn mix in this tree breaks
 VCS stamping): `go build -buildvcs=false -o bin/<cmd> ./cmd/<cmd>`.
 
+#### Go/Perl parity (2026-06 alignment)
+
+Go submit commands now match Perl behaviour in these areas:
+- **Output-path validation** — `ws.RequireFolder` in all 25 submit cmds (mirrors Perl `UploadSpec`).
+- **Genome-ID validation** — `api.RequireGenomeIDs` in the 5 genome-bearing cmds (mirrors Perl `GenomeIdSpec`).
+- **Paired-end lib syntax** — `NormalizePairedEndLibArgs` (`internal/cli/args.go`) pre-processes `os.Args` so `--paired-end-lib f1 f2` (two args, Perl style) works alongside the original `--paired-end-lib f1,f2` form.
+- **Configurable User-Agent** — `api.Client.UserAgent` defaults to `BV-BRC P3 Client` (via `P3_USER_AGENT` env or `WithUserAgent`). Required because `patricbrc.org` blocks `libwww-perl` via Cloudflare (error 1010); same UA is set in `P3DataAPI`.
+- **Enum alignment** — Snippy in variation mapper/caller; `MASTADENOA` (not `MASTADENO_A`) in SubspeciesClassification; `progressiveMauve` in MSA.
+
 #### Submit CLI test suite (`test/submit-suite/`)
 
 Python suite that reverse-engineers `p3-submit-*` invocations from the QA app
@@ -205,10 +214,15 @@ mapping; add an app there + in `appmap.py`. Note the Perl tools validate genome
 IDs over the network and can stall where the data API is unreachable (hence the
 `--timeout` / `--tool go` options).
 
+Last verified run (both tools): **PASS=49, MISMATCH=0, UNSUPPORTED=105, ERROR=49**.
+All 49 ERRORs are environmental (fixture output paths owned by other users,
+unbuilt Perl wrappers for new cmds, fixture typos) — not CLI bugs. See
+`PORT_STATUS.md` for a full breakdown.
+
 #### Data-query options & cursor pagination
 
 `api` supports cursor-based pagination (`QueryWithCursor`/`StreamWithCursor`/
 `QueryCallbackWithCursor`, driven by the `X-Cursor-Mark` header) exposed via the
 `--cursor` flag on `p3-all-*`/`p3-get-*`. Common `DataOptions` (in
 `internal/cli/options.go`) also include `--max-retries`, `--verbose` (retry
-messages to stderr), and `--sort` (prefix `-` for descending).
+messages to stderr), `--sort` (prefix `-` for descending), and `--user-agent`.
