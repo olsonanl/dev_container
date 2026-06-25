@@ -156,11 +156,27 @@ make                             # dev build to bin/
 VERSION=1.0.0 ./build-linux.sh  # release: Linux amd64+arm64 tarballs + .deb
 VERSION=1.0.0 ./build-macos.sh  # release: macOS amd64+arm64 tarballs
 VERSION=1.0.0 ./build-windows.sh # release: Windows amd64+arm64 .zip
+VERSION=1.0.0 ./build-apptainer.sh ubuntu-22  # SIF: ubuntu-22|ubuntu-24|rocky-9 (amd64)
 ```
 
 Note: `build-macos.sh` wipes all of `dist/`; run Linux first, then Mac, then
 Windows (each script only cleans its own platform subdirs except Mac). Or build
 each platform into separate dirs and merge manually.
+
+#### Apptainer / Singularity SIF images
+
+`build-apptainer.sh <distro>` (`ubuntu-22`|`ubuntu-24`|`rocky-9`) builds a `.sif`
+with the 101 `p3-*` tools preinstalled in `/usr/local/bin`. Because the binaries
+are fully static (`CGO_ENABLED=0` in `build-linux.sh`), the def just extracts the
+`linux-amd64` release tarball and installs `ca-certificates` (needed for the
+static Go binary's TLS to the data API). It reuses
+`dist/bvbrc-cli-<ver>-linux-amd64.tar.gz` (built on demand if absent). amd64 only;
+CentOS 7 dropped. Build uses `--fakeroot` by default — for a local build without
+fakeroot configured, run `APPTAINER_BUILD_ARGS= sudo -E ./build-apptainer.sh <distro>`.
+
+The `build-apptainer` matrix job in `release.yml` (needs: `release`) builds all
+three on a tag push and attaches `bvbrc-cli-<ver>-<distro>-amd64.sif` to the
+GitHub Release; Apptainer is installed via `eWaterCycle/setup-apptainer`.
 
 #### Relationship to p3_cli (porting)
 
