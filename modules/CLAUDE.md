@@ -163,19 +163,6 @@ Note: `build-macos.sh` wipes all of `dist/`; run Linux first, then Mac, then
 Windows (each script only cleans its own platform subdirs except Mac). Or build
 each platform into separate dirs and merge manually.
 
-#### Archive layout
-
-Each tarball/zip expands into a versioned directory
-(`bvbrc-cli-<ver>-<platform>/`) containing `bin/` (the `p3-*` tools; `*.exe` at
-the top on Windows), a generated `README.md`/`README.txt`, and `LICENSE` — not a
-bare `bin/`. The README is produced by `scripts/make-readme.sh <version>
-<platform>` (shared by all three build scripts; Unix vs Windows install notes by
-platform). `LICENSE` (MIT) lives at the repo root, is bundled into every archive,
-and is what conda's `license_file` resolves to. The conda recipe and
-`build-apptainer.sh` account for this: conda-build flattens the single top-level
-dir (so `build.sh` finds `bin/`), and the Apptainer def extracts with
-`--strip-components=1` into `/usr/local`.
-
 #### Apptainer / Singularity SIF images
 
 `build-apptainer.sh <distro>` (`ubuntu-22`|`ubuntu-24`|`rocky-9`) builds a `.sif`
@@ -199,7 +186,7 @@ enumerates commands dynamically (`Makefile` uses `$(wildcard cmd/*)`;
 `build-*.sh` use `ls -d cmd/p3-*/`), so a new `cmd/` directory is picked up
 automatically — no registration needed.
 
-`p3_cli/GO_PORT_PLAN.md` documents the original port design.
+`BV-BRC-Go-SDK/GO_PORT_PLAN.md` documents the original port design.
 `BV-BRC-Go-SDK/PORT_STATUS.md` is the live ledger: per-command "synced to"
 p3_cli commit + a stale-check command. Update a command's row when you port it.
 
