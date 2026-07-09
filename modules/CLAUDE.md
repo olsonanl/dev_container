@@ -140,6 +140,41 @@ Some modules have their own CLAUDE.md with detailed guidance. Check for module-s
 
 ## Module Notes
 
+### app_service (scheduler API)
+
+The scheduler queue lives in a MySQL DB (`sched_db_*` config). Two access styles
+coexist: **local DB tools** in `service-scripts/` (`p3x-qstat.pl` connects
+directly via `DBI`, host-bound) and the **JSONRPC API** in `AppService.spec` +
+`lib/Bio/KBase/AppService/AppServiceImpl.pm`, backed by `SchedulerDB.pm`.
+
+- **Editing the API:** change `AppService.spec`, run `make compile-typespec`
+  (regenerates `Service.pm` and the Perl/Python/JS clients, and injects an empty
+  `#BEGIN/#END <method>` stub into `AppServiceImpl.pm`), then fill the stub. The
+  Perl/Python clients are generated (untracked here); only `Client.js` is tracked.
+- **Auth in Impl methods:** `$ctx = $Bio::KBase::AppService::Service::CallContext`
+  gives `$ctx->user_id` and `$ctx->token`. **Admin check is role-based:**
+  `P3AuthToken->new(token=>$ctx->token)->is_admin` (token has `|scope=user|` +
+  `|roles=admin|`). (`Util.pm` also hardcodes `olson@patricbrc.org` for a
+  service-down bypass — unrelated to query auth.)
+- **`enumerate_tasks_qstat`** (added 2026-07, PR
+  https://github.com/BV-BRC/app_service/pull/37, branch `feature/qstat-in-api`):
+  remote `p3x-qstat`-style queue listing with **server-enforced visibility**.
+  Non-admins see only their own jobs (owner clause forced in SQL by
+  `_build_qstat_conditions`); `all_users` returns the whole queue but foreign
+  rows are **masked** in the Impl (id/owner/app blanked, params dropped). Admins
+  see all, unmasked. Returns cluster-execution fields (join Task⟕TaskExecution⟕
+  ClusterJob) and UTC ISO-8601 times. Client: `p3_cli/scripts/p3-qstat.pl`
+  (converts to local time by default, `--utc` to override). Not live until the
+  service is redeployed.
+- **`p3x-set-site-container.pl`** (PR
+  https://github.com/BV-BRC/app_service/pull/38): first arg matches a `site_type`
+  (tried first) **or** a domain against the host of `base_url` with subdomain
+  semantics (`maage-brc.org` hits `www.`+`dev.`; `dev.maage-brc.org` hits one).
+- **Heads-up:** several `service-scripts/p3x-*` exist only in the working tree /
+  deployment and are **not in `origin/master`** (e.g. `p3x-set-site-container.pl`
+  was net-new). Check `git ls-tree origin/master` before assuming a tool is
+  upstream.
+
 ### BV-BRC-Go-SDK
 
 The Go SDK provides **101 CLI tools** mirroring `p3_cli`, plus Go library
