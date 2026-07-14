@@ -175,6 +175,59 @@ directly via `DBI`, host-bound) and the **JSONRPC API** in `AppService.spec` +
   was net-new). Check `git ls-tree origin/master` before assuming a tool is
   upstream.
 
+### Workspace (MongoDB service)
+
+User file/object storage (JSONRPC, port 7125). Server impl is the **Perl**
+`lib/Bio/P3/Workspace/WorkspaceImpl.pm` (the `lib/WorkspaceImpl.py` is generated
+and untracked). Backed by MongoDB (`objects`, `downloads`, etc. collections) +
+Shock. Remotes here: `origin` = `olsonanl/Workspace` (fork), `upstream` =
+`BV-BRC/Workspace`.
+
+- **Production MongoDB is 3.4** — this constrains query features. Compile-check
+  edits with `source /home/olson/P3/dev-ubuntu/user-env.sh` then `perl -c`
+  (needs the runtime + sibling `p3_auth`/`p3_core`/`typecomp` libs on `PERL5LIB`;
+  the bare system perl lacks `RPC::Any`/`P3AuthLogin`).
+- **Index hints — the 3.4 gotcha:** the aggregate command only accepts the
+  `hint` option as of **MongoDB 3.6**. On 3.4 an `$col->aggregate([...], { hint
+  => ... })` is rejected server-side with `unrecognized field 'hint'` (surfaces
+  as JSONRPC `-32603`, or a JSON-encode failure on the error object). **Find**
+  cursors are fine — `$cursor->hint(...)` works on 3.4. Commit `e544e3d`
+  ("Restore index hints…") added hints in both forms; the aggregate ones broke
+  `get_archive_url` and `du` (`_calculate_du`). Fix (PR
+  https://github.com/BV-BRC/Workspace/pull/98, branch `fix/aggregate-hint-mongo34`):
+  helper `_aggregate_hint($col,$pipeline,$hint)` tries the hinted aggregate and
+  falls back to unhinted on failure (works on 3.4, keeps the hint on 3.6+). Route
+  all aggregate calls through it, never pass `{ hint => }` to `aggregate` directly.
+  The forced index is `workspace_uuid_1_path_1`.
+- **Heads-up:** many `service-scripts/p3x-*` and the modified test docs exist only
+  in the working tree, not upstream. The working tree is also littered with
+  `*.bak-<timestamp>` editor backups and generated files (`WorkspaceImpl.py`,
+  `biop3/`, `pod2htmd.tmp`) — ignore them when scoping a commit/PR.
+
+### p3_solr_pipeline (genome indexing)
+
+`service-scripts/rast2solr.pl` builds the Solr load documents (`genome.json`,
+`genome_feature.json`, …) from a genome object / GTO. The **current** Solr schema
+lives in `/home/olson/BV-BRC/schema-update-2026-0512/BV-BRC-Solr/<core>/managed-schema`
+(e.g. `genome/managed-schema`) — **not** the stale `/home/olson/P3/patric_solr/`
+copy. The genome core has **no `dynamicField` and no schemaless/unknown-field
+handling**, so any field not in `managed-schema` is rejected at index time.
+
+- **Field pass-through:** rast2solr.pl copies **every key** from the input
+  object's `genotype_annotation` sub-hash straight into the genome doc under its
+  original name (`while (my($k,$v)=each %{$genomeObj->{genotype_annotation}}) {
+  $genome->{$k}=$v }`, ~line 276). So viral-typing field names originate upstream
+  in whatever populated `genotype_annotation`, not in the indexer.
+- **`passage_details` mystery:** the schema field is `passage` (singular);
+  `passage_details` is **not** in the schema and **no code in this tree emits
+  it**. rast2solr.pl only ever sets `$genome->{passage}`. The GenomeAnnotation
+  spec's `genotype_annotation` typedef (`genome_annotation/GenomeAnnotation.spec`)
+  lists `subtype/h_type/n_type/clades/lineage/clade/subclade/other_typing` — no
+  `passage_details`. A doc carrying `passage_details` got it via the pass-through
+  above (an out-of-typedef key on `genotype_annotation`, likely legacy IRD/ViPR
+  data). It will fail to index against the current schema — fix at the source
+  (rename to `passage` or drop the key), or add the field to `managed-schema`.
+
 ### BV-BRC-Go-SDK
 
 The Go SDK provides **101 CLI tools** mirroring `p3_cli`, plus Go library
