@@ -170,6 +170,26 @@ directly via `DBI`, host-bound) and the **JSONRPC API** in `AppService.spec` +
   https://github.com/BV-BRC/app_service/pull/38): first arg matches a `site_type`
   (tried first) **or** a domain against the host of `base_url` with subdomain
   semantics (`maage-brc.org` hits `www.`+`dev.`; `dev.maage-brc.org` hits one).
+- **App-spec resolution at submit (preflight-dependent):** the spec a job
+  validates params against is **frozen into `Task.app_spec` at submit** and
+  replayed at runtime (never re-read from the container the job runs in). Its
+  *source branches on preflight* (`p3x-submit-job.pl:104-134`): if preflight runs
+  (normal submission, or a non-staff user), the spec is read **fresh from the
+  container** via `run_preflight()`; if a **staff** user disables preflight
+  (`p3-submit-* --preflight cpu=… memory=… runtime=…` → `disable_preflight`), the
+  spec is pulled from the **DB `Application.spec` cache** (`SELECT spec FROM
+  Application`). `create_task` stores whichever was chosen (`SchedulerDB.pm:197`).
+  `AppScript::preprocess_parameters` (`AppScript.pm:728`) then **silently drops**
+  any submitted param not declared in that spec (warns "provided … but not
+  specified in the app spec"; kept only in `raw_params`, never reaches the Impl).
+  **Gotcha:** the DB cache is refreshed only by **`p3x-load-app-specs`** (→
+  `Scheduler::load_apps` `update_or_new`, `Scheduler.pm:374`), so it drifts stale
+  vs. the container until reloaded — a staff `--preflight` submission then validates
+  against the old spec and drops newly-added params, while a normal submission on
+  the *same container* works. **After changing any `app_specs/*.json`, run
+  `p3x-load-app-specs` against the current container** so both paths agree.
+  (Verified 2026-07: a stale DB spec dropped `lowvan_min_contig_length` on a staff
+  `--preflight` GenomeAnnotationGenbank job; reloading specs fixed it.)
 - **Heads-up:** several `service-scripts/p3x-*` exist only in the working tree /
   deployment and are **not in `origin/master`** (e.g. `p3x-set-site-container.pl`
   was net-new). Check `git ls-tree origin/master` before assuming a tool is
