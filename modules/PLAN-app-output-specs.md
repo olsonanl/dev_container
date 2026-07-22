@@ -34,10 +34,11 @@ The framework (`app_service/lib/Bio/KBase/AppService/AppScript.pm`) only:
 ### Consequences
 - **No contract.** UI, downstream apps, docs, and QA cannot know expected
   outputs without reading Perl.
-- **Type drift / untyped data.** In the 2026-07-22 QA harvest, **~320 of ~700**
-  observed output files are `unspecified` (unmapped suffixes: `.zip`, `.tab`,
-  `.fastq.gz`, `.npz`, `.krona`, `.ref`, `.vcf.gz`, …). The viewer can't render
-  what it can't type.
+- **Type drift / untyped data.** In the 2026-07-22 QA harvest, **324 of 912**
+  observed output files (35%) are `unspecified` (unmapped suffixes: `.zip`,
+  `.tab`, `.fastq.gz`, `.npz`, `.krona`, `.ref`, `.vcf.gz`, `.pdf`, …). The
+  viewer can't render what it can't type. Per §3.1, this tracks the *copy
+  mechanism*, not the app.
 - **No verification.** Nothing flags "GenomeAnnotation didn't emit
   `GenomeReport.html` this run".
 
@@ -60,6 +61,74 @@ schema must express:
 | **B. Fixed name** | constant filename regardless of input | ComparativeSystems (`report.txt`), GenomeAnnotation (`GenomeReport.html`, `load_files/*.json`), MetagenomeBinning (`BinningReport.html`), Homology (`blast_out.*`), DifferentialExpression (`expression.json`…), GenomeAlignment (`alignment.*`) |
 | **C. Per-input-item** | one file/folder per sample/library/segment/contig/bin/ref | RNASeq (`<condition>/<sample>/…`), SARS2Wastewater (`<SRR>/…`), TaxonomicClassification (`<sample>/…`), Variation (`<lib>.*`), TnSeq (`<contig>.wig/.counts`), ViralAssembly (`<segment>.fasta`, `irma/…`), SubspeciesClassification (`details/<ref>.tre`) |
 | **D. Nested tool dumps** | whole working subtree copied (mostly untyped) | RNASeq, SARS2Wastewater, ViralAssembly `irma/`, SequenceSubmission `SequenceValidation/`, quast/, fastqc_results/ |
+
+### 3.1 Per-app type coverage + pattern (QA harvest 2026-07-22)
+
+One completed job per app; files counted recursively (folders excluded); "typed"
+= written with a workspace type (not `unspecified`). Sorted worst-typed first.
+
+| App | Typed frac | Typed / files | Pattern |
+|---|---|---|---|
+| SequenceSubmission | 0.14 | 25 / 177 | C+D per-sample `SequenceValidation/<sample>/` |
+| ViralAssembly | 0.47 | 96 / 206 | C+D per-segment + `irma/`, `quast/` |
+| CodonTree | 0.53 | 9 / 17 | A+B; `detail_files/` untyped |
+| RNASeq | 0.58 | 33 / 57 | C+D `<condition>/<sample>/` + matrices |
+| StructureSequencePrediction | 0.67 | 4 / 6 | D `out/{probs,scores,seqs}/` |
+| HASubtypeNumberingConversion | 0.80 | 8 / 10 | B+C fixed + per-query |
+| TaxonomicClassification | 0.82 | 37 / 45 | C+D per-sample nested + aggregates |
+| Homology | 0.83 | 5 / 6 | B fixed `blast_out.*` |
+| SARS2Wastewater | 0.87 | 78 / 90 | C+D per-SRR `assembly/ fastqc/ freyja/` |
+| Variation | 0.89 | 24 / 27 | C+B+D per-library `SE1.*` + `Text_Files_…/` |
+| GenomeAnnotation | 0.97 | 29 / 30 | A+B + `load_files/*.json` |
+| GenomeAnnotationGenbank | 0.97 | 30 / 31 | A+B (as GenomeAnnotation) |
+| ComparativeSystems | 1.00 | 7 / 7 | A+B |
+| ComprehensiveSARS2Analysis | 1.00 | 42 / 42 | B+D composite (`.annotation/ .assembly/` + job_results) |
+| DifferentialExpression | 1.00 | 4 / 4 | B fixed (`diffexp_*` types) |
+| FastqUtils | 1.00 | 2 / 2 | C per-input `<read>_fastqc.html` |
+| GeneTree | 1.00 | 6 / 6 | A+B |
+| Genomad | 1.00 | 10 / 10 | C per-input prefix `<contig>_*` |
+| GenomeAlignment | 1.00 | 4 / 4 | B fixed `alignment.*` |
+| GenomeAssembly2 ⚠ | 1.00 | 2 / 2 | B+D — **degenerate sample (JobFailed)** |
+| GenomeComparison | 1.00 | 10 / 10 | B fixed `circos.*`, `genome_comparison.*` |
+| MSA | 1.00 | 11 / 11 | A `{output_file}.*` |
+| MetaCATS | 1.00 | 4 / 4 | A+B |
+| MetagenomeBinning | 1.00 | 6 / 6 | B+C fixed + per-bin |
+| MetagenomicReadMapping | 1.00 | 6 / 6 | B fixed `kma.*` |
+| PrimerDesign | 1.00 | 3 / 3 | A |
+| SARS2Assembly | 1.00 | 16 / 16 | A+D `{output_file}.*` + `sra-metadata/` |
+| StabilityPrediction | 1.00 | 1 / 1 | B single `csv` |
+| SubspeciesClassification | 1.00 | 30 / 30 | B+C report + `details/<ref>.tre` |
+| TnSeq | 1.00 | 46 / 46 | C per-contig `.counts/.wig` |
+| **Total** | **0.65** | **588 / 912** | — |
+
+**Typed-fraction tracks the copy mechanism, not the app or the pattern.** Every
+app at 1.00 uses explicit `save_file_to_file(...,$type)` per file. Every app
+below ~0.9 uses a recursive `p3-cp --map-suffix` dump (idiom 3), where any suffix
+absent from the map is written untyped. So the cleanup lever is the emitter, not
+the spec.
+
+### 3.2 Consolidating the pattern taxonomy (side goal)
+
+The four "patterns" of §3 are not four kinds — they are **two orthogonal axes**
+that got conflated:
+
+- **Axis 1 — leaf naming:** `{output_file}`-prefixed (A) · fixed literal (B) ·
+  per-input-item (C). These are real, distinct needs.
+- **Axis 2 — folder shape:** flat vs nested. **D is not a naming pattern** — it
+  is just any of A/B/C emitted into subfolders.
+
+`B` (fixed literal names like `GenomeReport.html`, `alignment.xmfa`) is mostly
+historical accident and could migrate onto the `{output_file}` prefix for
+consistency, but that is a behavior change and not required for phase 1.
+
+**Consolidation target — collapse to one model the schema (§4) already encodes:**
+- leaf naming ∈ { `{output_file}`, `{sample}` (via `for_each`), literal } — Axis 1
+- `folder` field carries all nesting — Axis 2, so `D` disappears as a concept
+- every declared output has a `type`; the idiom-3 suffix maps get extended (or
+  replaced by declared globs) so nothing lands `unspecified`.
+
+This makes the worst-typed apps (SequenceSubmission, ViralAssembly, RNASeq) the
+natural pilots for *declaring* and *fixing types* in one pass.
 
 Cross-cutting structural facts:
 - Outputs live under `result_folder` = `.<output_file>/`. Some apps nest
