@@ -134,6 +134,39 @@ $KB_RUNTIME/bin/python -m pytest tests/
 
 Most service tests require running dependencies (MongoDB, Shock, etc.) configured in `test.cfg` or `deploy.cfg`.
 
+### App QA fixtures (`tests/*.json`) — two locations + private-workspace pitfall
+
+App submit params for the QA harness live as JSON fixtures in **two** places
+that must be kept in sync:
+- **In the module repo:** `<module>/tests/*.json` (source of truth, version-controlled).
+- **On the QA host:** `/vol/patric3/QA/applications/App-<Name>/tests/*.json` —
+  **this is what `p3x-run-qa-suite` actually reads.** Editing the repo copy alone
+  does **not** change what the QA run executes; copy the corrected fixtures to
+  `/vol` too (the dir is writable by the QA owner). Snapshots of the `/vol` copy
+  live under `/vol/patric3/.snapshot/daily.<date>/QA/applications/App-<Name>/tests/`
+  — useful for recovering edits that were made on `/vol` but never committed back.
+
+- **Pitfall — fixtures referencing a private workspace.** Many legacy fixtures
+  point `output_path` / input file paths (`fasta_files[].file`, `alignment_file`,
+  `group_file`, feature/genome group refs, …) at some other user's **private**
+  workspace (e.g. `/jsporter@patricbrc.org/home/...`, `/…/JSP_debug/<user>/…`).
+  The QA runner can't read those, so `$ws->stat($path)` returns `undef` at
+  preflight — and an app that calls `->size` on the result without guarding
+  **crashes** (opaque JSONRPC `-32603`) instead of failing cleanly. Fix at both
+  ends: guard `stat` in the app's `preflight` (die with the offending path), and
+  repoint fixtures at an **accessible** QA area
+  (`/olson@patricbrc.org/PATRIC-QA/applications/App-<Name>/`). Globally-readable
+  shared data (e.g. `/BVBRC@patricbrc.org/BVBRC Tests/…`) is fine as-is.
+- **`p3-cp -A` / `p3-ls -A` (hidden admin flag, not in `--help`).** To copy data
+  out of another user's private workspace into an accessible QA dir, use
+  `p3-cp -A -f ws:/<owner>@patricbrc.org/… ws:/olson@patricbrc.org/PATRIC-QA/applications/App-<Name>/`.
+  `-A` (admin) bypasses the read-permission wall; object **type is preserved**
+  (a `feature_group` stays a `feature_group`, not flattened to a file). `p3-ls -A`
+  likewise lets you inspect/stat private paths.
+- **Verify before running:** `grep -l jsporter tests/*.json` should return nothing,
+  and every referenced input must resolve as the running user (`p3-ls` without
+  `-A`). Applied 2026-07 to `p3_msa` and `bvbrc_metacats` (see Module Notes).
+
 ## Module-Specific Documentation
 
 Some modules have their own CLAUDE.md with detailed guidance. Check for module-specific documentation when working on a particular module.
@@ -194,6 +227,34 @@ directly via `DBI`, host-bound) and the **JSONRPC API** in `AppService.spec` +
   deployment and are **not in `origin/master`** (e.g. `p3x-set-site-container.pl`
   was net-new). Check `git ls-tree origin/master` before assuming a tool is
   upstream.
+
+### app_specs output declarations (planned, not yet implemented)
+
+`app_specs/<App>.json` describe **inputs** only; there is **no declarative output
+spec**. Output files are typed imperatively in each `service-scripts/App-*.pl`
+via three idioms: (1) explicit `->workspace->save_file_to_file($local,$meta,
+$path,$type,…)` per file; (2) an in-script suffix-regex table (e.g.
+`p3_msa/…App-MSA.pl:693`); (3) recursive `p3-cp -r --map-suffix ext=type …
+ws:<result_folder>` (shared `save_output_files` helper). The framework
+(`app_service/lib/Bio/KBase/AppService/AppScript.pm`) only creates the result
+folder `.<output_file>/` (`create_result_folder`:572) and lists it afterward into
+the `job_result` (`write_results`:785) — it never assigns or checks types.
+
+- **Untyped-data gotcha:** idiom 3 writes any unmapped suffix as `unspecified`.
+  In the 2026-07-22 QA harvest **324/912 output files (35%) are untyped**; typed-
+  fraction tracks the *copy mechanism, not the app* (explicit saves = 1.00).
+- **Plan + estimate live in `modules/`:** `PLAN-app-output-specs.md` (proposed
+  `outputs[]` schema, per-app type-coverage chart §3.1, two-axis naming-pattern
+  consolidation §3.2, rollout) and `PLAN-app-output-specs-estimate.md` (observed
+  typed output trees for the 30 apps with a completed QA job). Branch
+  `plan/app-output-specs`.
+- **Estimate method:** one **completed** QA job per app (`QA.2026-0722.1.html`),
+  recursive Workspace `ls` with types. QA "OK" ≠ full output (e.g. the sampled
+  GenomeAssembly2 run is a `JobFailed.txt`) — re-sample clean runs when writing
+  specs. 10 specs have no completed sample → derive from code.
+- **Open risk before relying on it at runtime:** confirm `p3x-load-app-specs` →
+  DB `Application.spec` and the frozen `Task.app_spec` round-trip an unknown
+  `outputs` key intact (cf. the preflight/spec-source behavior above).
 
 ### Workspace (MongoDB service)
 
@@ -367,3 +428,35 @@ unbuilt Perl wrappers for new cmds, fixture typos) — not CLI bugs. See
 `--cursor` flag on `p3-all-*`/`p3-get-*`. Common `DataOptions` (in
 `internal/cli/options.go`) also include `--max-retries`, `--verbose` (retry
 messages to stderr), `--sort` (prefix `-` for descending), and `--user-agent`.
+
+### p3_msa (MSA app)
+
+Service script `service-scripts/App-MSA.pl`, spec `app_specs/MSA.json`, QA
+fixtures `tests/*.json`. Remotes: `bob` = `olsonanl/p3_msa` (fork),
+`origin` = `BV-BRC/p3_msa`.
+
+- **`ref_type` enum** (`MSA.json`): `none|string|feature_id|genome_id|first`.
+  `first` = use the first sequence in the file as reference (no downstream branch
+  needed; `process_fasta` only special-cases string/feature_id/genome_id).
+  `first_in_file` was a fixture typo — invalid, rejected by
+  `preprocess_parameters` **before** preflight.
+- **Preflight `stat` guard** (PR https://github.com/BV-BRC/p3_msa/pull/26,
+  branch `fix/msa-preflight-stat-guard`): `preflight` now dies with a clear
+  message when `$ws->stat` on a `fasta_files[].file` returns `undef` (missing /
+  unreadable), instead of crashing on `->size`. Same PR migrated all `tests/*.json`
+  off jsporter-private paths to `/olson@…/PATRIC-QA/applications/App-MSA/` (data
+  copied there via `p3-cp -A`). See "App QA fixtures" under Testing.
+
+### bvbrc_metacats (MetaCATS app)
+
+QA fixtures `tests/*.json`; live QA copy `/vol/patric3/QA/applications/App-MetaCATS/tests/`.
+Remotes: `origin` = `olsonanl/bvbrc_metacats` (fork), `upstream` = `BV-BRC/bvbrc_metacats`.
+
+- **Fixture path migration** (PR https://github.com/BV-BRC/bvbrc_metacats/pull/20,
+  branch `fix/metacats-jsporter-paths`): three fixtures pointed at jsporter's
+  private workspace. `windows_input.json` read `alignment_file`/`group_file` from
+  `/jsporter@…/JSP_debug/aniewiad1/` (aniewiad1-owned, not globally readable) —
+  data copied into `App-MetaCATS/` via `p3-cp -A` and repointed;
+  `filename_whitespace_issue_675.json` + `auto_groups_formfill.json` only needed
+  `output_path` repointed (their inputs were already accessible). See "App QA
+  fixtures" under Testing.
