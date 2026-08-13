@@ -255,6 +255,11 @@ the `job_result` (`write_results`:785) — it never assigns or checks types.
 - **Open risk before relying on it at runtime:** confirm `p3x-load-app-specs` →
   DB `Application.spec` and the frozen `Task.app_spec` round-trip an unknown
   `outputs` key intact (cf. the preflight/spec-source behavior above).
+- **Some `app_specs/*.json` are not valid JSON.** Perl's relaxed `JSON::XS` and
+  the JS loader tolerate them; Python `json`, Go `encoding/json` and `jq` do
+  not — so any spec-scanning tool needs a pre-clean pass. Known offenders
+  (2026-08): trailing commas in `TaxonomicClassification.json` and
+  `SARS2Wastewater.json`, `#` comment lines in `ComprehensiveSARS2Analysis.json`.
 
 ### Workspace (MongoDB service)
 
@@ -312,9 +317,16 @@ handling**, so any field not in `managed-schema` is rejected at index time.
 ### BV-BRC-Go-SDK
 
 The Go SDK provides **101 CLI tools** mirroring `p3_cli`, plus Go library
-packages for programmatic API access. **v1.0.0 released 2026-06-24** — tarballs
-and zips in `BV-BRC-Go-SDK/dist/` for Linux (amd64/arm64), macOS (amd64/arm64),
-and Windows (amd64/arm64). Go packages: `api`, `appservice`, `auth`, `workspace`.
+packages for programmatic API access. Go packages: `api`, `appservice`, `auth`,
+`workspace`.
+
+**Releases are cut from the fork `olsonanl/BV-BRC-Go-SDK`, not from
+`BV-BRC/BV-BRC-Go-SDK`.** The fork is the release repo (it holds the Actions
+secrets); upstream lags well behind — as of 2026-08 upstream's latest release is
+v2.0.1 while the fork is at **v2.0.12**. The two `main` branches have diverged
+(fork ahead by a dozen-plus commits, and behind by a few), so upstream is synced
+periodically with a whole-fork-main PR, not per-fix PRs. Local release artifacts
+land in `BV-BRC-Go-SDK/dist/`, but the real ones come from CI (below).
 
 Build:
 ```bash
@@ -322,15 +334,83 @@ cd modules/BV-BRC-Go-SDK
 export PATH=/home/olson/P3/go-1.25.6/go/bin:$PATH
 go build -buildvcs=false ./...   # verify whole module (-buildvcs=false required)
 make                             # dev build to bin/
-VERSION=1.0.0 ./build-linux.sh  # release: Linux amd64+arm64 tarballs + .deb
-VERSION=1.0.0 ./build-macos.sh  # release: macOS amd64+arm64 tarballs
-VERSION=1.0.0 ./build-windows.sh # release: Windows amd64+arm64 .zip
-VERSION=1.0.0 ./build-apptainer.sh ubuntu-22  # SIF: ubuntu-22|ubuntu-24|rocky-9 (amd64)
+VERSION=2.0.12 ./build-linux.sh   # release: Linux amd64+arm64 tarballs + .deb
+VERSION=2.0.12 ./build-macos.sh   # release: macOS amd64+arm64 tarballs
+VERSION=2.0.12 ./build-windows.sh # release: Windows amd64+arm64 .zip
+VERSION=2.0.12 ./build-apptainer.sh ubuntu-22  # SIF: ubuntu-22|ubuntu-24|rocky-9 (amd64)
 ```
 
 Note: `build-macos.sh` wipes all of `dist/`; run Linux first, then Mac, then
 Windows (each script only cleans its own platform subdirs except Mac). Or build
 each platform into separate dirs and merge manually.
+
+#### Version stamping and the User-Agent (2026-08)
+
+The top-level **`version`** package holds the build version and derives the
+User-Agent every SDK HTTP client sends: **`bvbrc-go-sdk/<version>`** (e.g.
+`bvbrc-go-sdk/2.0.12`). It replaced the fixed `BV-BRC P3 Client`, and is now set
+on the data API (`api`), Workspace and AppService JSONRPC, Shock downloads,
+`auth` login, and NCBI eutils (`sra`) — the JSONRPC/Shock/login calls previously
+sent Go's default `Go-http-client/1.1`. `P3_USER_AGENT`, `WithUserAgent` and
+`--user-agent` still override. Verified against both `www.bv-brc.org/api` and
+`www.patricbrc.org/api`: the new UA gets 200, `libwww-perl` still gets 403.
+
+- **Where the version comes from:** `scripts/version.sh` — `$VERSION` if set
+  (the release workflow sets it from the pushed tag), else the tag when HEAD is
+  exactly tagged (leading `v` stripped), else the short commit hash
+  (`+"-dirty"`), else `unknown`. `Makefile` and all four `build-*.sh` scripts
+  stamp it with
+  `-ldflags "-X github.com/BV-BRC/BV-BRC-Go-SDK/version.Version=$VERSION"`; the
+  build scripts also default `VERSION` from it instead of the old literal
+  `1.0.0`, so a local (non-CI) release build names its artifacts after the tag
+  or hash.
+- **Gotcha:** a bare `go build -buildvcs=false ./...` stamps nothing, and
+  `-buildvcs=false` also denies the `debug.ReadBuildInfo` fallback its VCS data,
+  so such a binary reports `bvbrc-go-sdk/unknown`. Use `make` (or a build
+  script) for anything whose UA matters. `go install …@v2.0.12` is fine — the
+  fallback reads the module version.
+
+#### Cutting a release (tag push → CI)
+
+**Pushing a `v*` tag to the fork is the entire release procedure.** There is no
+manual artifact upload; `.github/workflows/release.yml` triggers on
+`push: tags: ['v*']` and derives everything from the tag
+(`VERSION=${GITHUB_REF_NAME#v}`).
+
+```bash
+cd modules/BV-BRC-Go-SDK
+git fetch <remote> main && git merge --ff-only <remote>/main   # tag a commit that is on main
+export PATH=/home/olson/P3/go-1.25.6/go/bin:$PATH
+go build -buildvcs=false ./... && go test ./internal/...       # sanity-check the exact commit
+git tag v2.0.12 <commit>                                       # lightweight, matching existing tags
+git push https://github.com/olsonanl/BV-BRC-Go-SDK.git v2.0.12
+gh run list --repo olsonanl/BV-BRC-Go-SDK --workflow release.yml --limit 3
+```
+
+- **Tag the fork, not upstream** — the Actions secrets live there (see the intro
+  above). Latest: **v2.0.12** (2026-08-12, at fork-main merge `68cffe6`, which
+  carried the read-library dialect fixes).
+- **Tags here are lightweight** by convention (`git cat-file -t v2.0.11` →
+  `commit`). Keep matching; nothing depends on annotation, but consistency
+  makes `git describe` behave predictably.
+- **Job graph (6 jobs):** `build-linux` / `build-macos` / `build-windows` run in
+  parallel → `release` (needs all three; sha256sums; uploads assets) →
+  `build-apptainer` (matrix ubuntu-22 / ubuntu-24 / rocky-9, reuses the
+  `linux-dist` artifact — no Go rebuild) and `conda-publish` (both `needs:
+  release`, run in parallel).
+- **Gotcha — a bare tag push creates no GitHub Release**, and `gh release upload`
+  requires one. The `release` job therefore creates it as a **prerelease** if
+  absent, and force-publishes (`--draft=false`) an existing draft: draft releases
+  do not serve `releases/download/<tag>/`, which conda's checksum fetch and the
+  recipe's `source: url:` both read (they 404 against a draft). Flip prerelease →
+  release by hand once the artifacts look right.
+- **Gotcha — `ANACONDA_API_TOKEN`** (repo secret) needs both `api:write` **and**
+  `api:read`; a write-only token fails the upload late, after everything else
+  has succeeded.
+- **Gotcha — this workstation's SSH to GitHub is broken** (`Permission denied
+  (publickey)`, no `ssh-askpass`). Push with the explicit HTTPS URL as above so
+  `gh`'s credential helper supplies the token; `git push origin v…` over SSH
+  will fail.
 
 #### Archive layout
 
@@ -399,9 +479,92 @@ VCS stamping): `go build -buildvcs=false -o bin/<cmd> ./cmd/<cmd>`.
 Go submit commands now match Perl behaviour in these areas:
 - **Output-path validation** — `ws.RequireFolder` in all 25 submit cmds (mirrors Perl `UploadSpec`).
 - **Genome-ID validation** — `api.RequireGenomeIDs` in the 5 genome-bearing cmds (mirrors Perl `GenomeIdSpec`).
-- **Paired-end lib syntax** — `NormalizePairedEndLibArgs` (`internal/cli/args.go`) pre-processes `os.Args` so `--paired-end-lib f1 f2` (two args, Perl style) works alongside the original `--paired-end-lib f1,f2` form.
-- **Configurable User-Agent** — `api.Client.UserAgent` defaults to `BV-BRC P3 Client` (via `P3_USER_AGENT` env or `WithUserAgent`). Required because `patricbrc.org` blocks `libwww-perl` via Cloudflare (error 1010); same UA is set in `P3DataAPI`.
+- **Paired-end lib syntax** — all 11 paired-end commands accept both spellings
+  identically (verified 2026-08 by diffing `--dry-run` params across forms).
+  `NormalizePairedEndLibArgs` (`internal/cli/args.go`) pre-processes `os.Args`
+  so `--paired-end-lib f1 f2` (two args, Perl `=s{2}` style) works alongside
+  `--paired-end-lib f1,f2` / `--paired-end-lib=f1,f2`; it also rewrites the Perl
+  plural alias `--paired-end-libs` to the singular (cobra has no flag aliases,
+  and doing it here keeps it out of all 11 flag sets) and stops at a bare `--`.
+  `cli.SplitPairedEndLib` then splits the one value — every command calls it
+  instead of its own `strings.Split`, so the tolerated whitespace and the error
+  text are the same everywhere; `cli.PairedEndLibUsage` likewise unifies the
+  `--help` line. **Asymmetry that remains:** Perl accepts only the two-arg form
+  (`ReadSpec.pm:255`), never the comma; and `p3-submit-genome-assembly.pl:117`
+  declares its own `paired-end-lib=s{2}` without ReadSpec's `|paired-end-libs`
+  alias, so that one Perl tool rejects the plural. Go is a superset of both.
+- **Configurable User-Agent** — every SDK HTTP client sends one (see "Version stamping" below); overridable via `P3_USER_AGENT` or `WithUserAgent`/`--user-agent`. Required because `patricbrc.org` blocks `libwww-perl` via Cloudflare (error 1010); the Perl side sets `BV-BRC P3 Client` in `P3DataAPI`.
 - **Enum alignment** — Snippy in variation mapper/caller; `MASTADENOA` (not `MASTADENO_A`) in SubspeciesClassification; `progressiveMauve` in MSA.
+
+#### Read-library parameter dialects (`internal/readspec`, 2026-08)
+
+Apps **disagree** on the shape of their read-library params, and a wrong
+parameter *name* fails silently: `AppScript::preprocess_parameters` drops
+undeclared params with only a warning, so the reads just vanish and the job runs
+on what's left. Never hand-roll a read-lib block in a new submit command — use
+`internal/readspec`, which mirrors Perl
+`Bio::KBase::AppService::ReadSpec`'s selection. Two independent axes:
+
+| axis | values | Perl field |
+|---|---|---|
+| SRA param **name** | `srr_ids` / `srr_libs` | `srr_label` |
+| SRA entry **shape** | bare string / `{srr_accession}` | `srrAlt` |
+
+plus per-library `sample_id` (`samples`), `condition` (`rnaseq`), and
+`primers`/`primer_version`/`sample_level_date` (`analysis`). Constructor rules
+(`ReadSpec.pm:229-236`): `samples||analysis` → `srrAlt`;
+`samples||analysis||rnaseq` → `srr_libs`. `srrAlt` alone does **not** set the
+label — FastqUtils needs both, so `p3-submit-fastqutils.pl:92` assigns
+`$reader->{srr_label}` directly (Go: `Options.SRRKeyOverride`).
+
+Map an app by finding its `ReadSpec->new` call in `p3_cli/scripts/`, then
+**verify against `app_specs/<App>.json`** — the spec wins where they disagree.
+Perl-side defects found doing this (all reproduced with `--dry-run`, none fixed)
+are in `BV-BRC-Go-SDK/doc/PERL-READSPEC-ISSUES.md`; the big one is that
+`_processTweaks` has an inverted `assembling` guard, so `--platform`,
+`--insert-size-*` and `--read-orientation-*` **never reach a library in any
+app** — don't assume a declared spec param is reachable from the Perl CLI.
+
+`sample_id` derivation (`SampleIDForPair`/`SampleIDForFile`): paired = longest
+common prefix of the two basenames when ≥5 chars, else the single-file rule on
+read1; single = basename, strip one extension (honoring `.gz`), then strip a
+trailing `_` or `_<letter>`. The package's tests use expectations generated by
+running the real Perl module — regenerate them that way, don't hand-transcribe.
+
+#### SRA accession validation (`sra` package, 2026-08, Go only)
+
+Top-level `sra` package (peer of `api`/`appservice`/`auth`/`workspace`) that
+resolves SRA accessions at NCBI eutils —
+`efetch.fcgi?db=sra&rettype=docset&id=<comma-joined>`, the same endpoint
+`sra_import/lib/sra_tools.py` uses. `Lookup` returns `(found, missing, err)`:
+**`missing` = the accession does not exist** (eutils silently omits unknown ids
+from the response rather than failing, so absence is the signal, and a wholly
+bogus list comes back as `<ERROR>ID list is empty!…</ERROR>`), while a non-nil
+**`err` = the service was unreachable**. Callers must keep those distinct.
+Run/experiment/study accessions all match, mirroring
+`sra_tools.parse_accession_metadata`. ENA's `filereport` is *not* a usable
+substitute — it had no rows for recent submissions that NCBI had. Honors
+`NCBI_API_KEY`; retries 429/5xx; batches 20 ids per request.
+
+- **The title is the *study* title** (`STUDY/DESCRIPTOR/STUDY_TITLE`), which is
+  what the web UI records as `title` on a submitted SRA library — **not** the
+  experiment `<TITLE>`, which is different text for the same run.
+- Wired into **all 11 `--srr-id` commands** behind **`--validate-srr`** (opt-in;
+  default off, so no network call and byte-identical params without it), via the
+  single helper `cli.LookupSRRTitles` (`internal/cli/srr.go`). Prints
+  `<accession>\t<study title>` per accession to stderr, and hard-fails listing
+  *all* unknown accessions before anything is uploaded. NCBI unreachable only
+  warns.
+- **The title only lands where the spec has an object to put it in**: the four
+  `srr_libs` apps (FastqUtils, RNASeq, TaxonomicClassification, SARS2Wastewater)
+  get `title` on each entry; the six bare-`srr_ids` apps and viral-assembly's
+  single `srr_id` string are validated only.
+- **Caveat:** none of those four specs declares `title` in its `srr_libs` group,
+  so `AppScript::preprocess_parameters` drops it at runtime (see the silent-drop
+  note under app_service). It is recorded for provenance and UI parity, not
+  consumed by the app — the app is not broken.
+- Go-ahead-of-Perl on purpose; `p3_cli` has no equivalent. Invisible to the
+  submit suite because the suite never passes the flag.
 
 #### Submit CLI test suite (`test/submit-suite/`)
 
