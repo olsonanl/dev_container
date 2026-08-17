@@ -109,6 +109,64 @@ Set `KB_INTERACTIVE=1` when running scripts interactively.
 - `KB_RUNTIME` - Path to runtime (perl, python, etc.)
 - `KB_PERL_PATH` / `PERL5LIB` - Perl library paths
 - `KB_DEPLOYMENT_CONFIG` - Path to service configuration
+- `P3_USER_AGENT` - Override the client User-Agent (see HTTP diagnostics below)
+- `P3_DEBUG_HTTP` - Dump headers of failed HTTP exchanges (Perl **and** Go)
+
+## HTTP diagnostics / Cloudflare (2026-08)
+
+The BV-BRC web sites sit behind Cloudflare, which rejects disallowed library
+user-agents with **error 1010** before the request ever reaches the origin.
+Clients used to report nothing but a status code, so an edge rejection was
+indistinguishable from a bad password.
+
+- **`P3_DEBUG_HTTP=1` is the cross-language switch.** Set it and any failing
+  HTTP exchange in the Perl clients *or* the Go SDK prints a redacted dump of
+  the request/response headers plus ≤2 KiB of body. It needs no per-command
+  plumbing, so it works across every `p3-*` tool in both trees. `p3-login`
+  (both languages) also takes `--debug-http`; the Go `--debug` data-option flag
+  enables it too.
+- **Never printed:** `Authorization` / `Cookie` / `Set-Cookie` /
+  `Proxy-Authorization` / `X-Auth-Token` values (shown as `<redacted, N bytes>`)
+  and the **request body** — the login POST body is the user's password, and
+  `login_rast` puts the password in a Basic `Authorization` header. Both test
+  suites assert the password, the base64 Basic credential and a cookie value
+  are all absent from a dump.
+- **The Perl UA default moved off `libwww-perl`.** Only `P3DataAPI.pm` set an
+  allowlisted agent; every other LWP client (`P3AuthLogin`, `P3TokenValidator`,
+  `P3UserAPI`, `P3Utils`, `P3WorkspaceClient`, `RASTlib`) sent LWP's default —
+  i.e. exactly the string the 1010 rule bans. All now build their agent with
+  **`P3ClientUA::new_ua()`**, preserving the existing precedence
+  `$FIG_Config::p3_data_api_user_agent` → `$ENV{P3_USER_AGENT}` →
+  `"BV-BRC P3 Client"`. Note FIG_Config **wins over the env var** — in a
+  deployment that sets it, `P3_USER_AGENT=…` appears to do nothing.
+- **`P3ClientUA` lives in `p3_auth`, not `p3_core`**, purely for dependency
+  ordering: `p3_core` depends on `p3_auth` (`P3AuthToken`), never the reverse,
+  so `p3_auth` is the only module all three (`p3_auth`/`p3_core`/`p3_cli`) can
+  import from. Do **not** fold it into `P3AuthConstants.pm` — that file is
+  generated from `Constants.pm.tt`. Go equivalent: `internal/httpdiag`.
+- **Three wire forms of the same 1010** — all observed live, all must be
+  detected. (1) an **HTML** error page (`Error 1010`, `cf-error-details`);
+  (2) **JSON** (`{"error_code":1010,…,"cloudflare_error":true,"retryable":false}`),
+  which is what `www.patricbrc.org/api` serves a JSON-requesting client; (3) a
+  bare **`text/plain`** body `error code: 1010` (17 bytes), served to the Perl
+  solr query path. The colon in form 3 is why the matcher is
+  `Error\s+(?:code)?\s*:?\s*10\d\d` and not something tighter.
+- **A `CF-Ray` header is not evidence of a block.** Cloudflare stamps it on
+  everything it proxies, including an ordinary 401 from our login service — key
+  a block off `CF-Mitigated`, a body marker, or a CF-generated status served as
+  `text/html`. The Ray id is always reported (support asks for it) but
+  "blocked by Cloudflare" only when warranted.
+- **Where the rule actually is:** `www.patricbrc.org/api` returns **403** to
+  `libwww-perl` and 200 to the allowlisted string, but
+  `user.patricbrc.org/authenticate` returns 401 to `libwww-perl`,
+  `BV-BRC P3 Client` and `Go-http-client/1.1` alike — so as of 2026-08 the 1010
+  rule is on the **www zone, not the auth endpoint**. The login-path UA fix is
+  prophylactic; the diagnostics are what will identify an intermittent
+  rejection.
+- **Known wart (not fixed):** `P3DataAPI`'s query loop retries a 1010 fifteen
+  times with growing sleeps (~135 s) even though Cloudflare marks it
+  `"retryable":false`. `solr_query_raw` dies immediately and is the fast way to
+  reproduce a block.
 
 ## Testing
 
@@ -260,6 +318,22 @@ the `job_result` (`write_results`:785) — it never assigns or checks types.
   not — so any spec-scanning tool needs a pre-clean pass. Known offenders
   (2026-08): trailing commas in `TaxonomicClassification.json` and
   `SARS2Wastewater.json`, `#` comment lines in `ComprehensiveSARS2Analysis.json`.
+
+### p3_auth (authentication + shared HTTP client)
+
+Bottom of the Perl dependency chain: `p3_core` and `p3_cli` import from it, never
+the reverse. That is why the shared LWP factory / Cloudflare diagnostics module
+**`lib/P3ClientUA.pm`** lives here (see "HTTP diagnostics / Cloudflare" above).
+
+- **`lib/P3AuthConstants.pm` is generated** from `Constants.pm.tt` by
+  `Makefile:build-libs` — never hand-edit it, and do not add shared code to it.
+- **Tests live in top-level `client-tests/`, not `t/client-tests/`** — the
+  Makefile globs `CLIENT_TESTS = $(wildcard client-tests/*.t)` (there is no `t/`
+  dir at all). New: `client-tests/p3-client-ua.t` (27 offline TAP tests).
+- **`make test` is pre-existing-broken:** it runs `test-libs` first, which
+  `cd Bio-KBase-Auth` — a directory that does not exist in this tree. Run the
+  client tests directly (`perl client-tests/<file>.t` after sourcing
+  `user-env.sh`) or `make test-client`.
 
 ### Workspace (MongoDB service)
 
