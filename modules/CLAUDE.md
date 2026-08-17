@@ -395,12 +395,24 @@ packages for programmatic API access. Go packages: `api`, `appservice`, `auth`,
 `workspace`.
 
 **Releases are cut from the fork `olsonanl/BV-BRC-Go-SDK`, not from
-`BV-BRC/BV-BRC-Go-SDK`.** The fork is the release repo (it holds the Actions
-secrets); upstream lags well behind — as of 2026-08 upstream's latest release is
-v2.0.1 while the fork is at **v2.0.12**. The two `main` branches have diverged
-(fork ahead by a dozen-plus commits, and behind by a few), so upstream is synced
+`BV-BRC/BV-BRC-Go-SDK`** — the fork holds the Actions secrets. Upstream is synced
 periodically with a whole-fork-main PR, not per-fix PRs. Local release artifacts
 land in `BV-BRC-Go-SDK/dist/`, but the real ones come from CI (below).
+
+- **Upstream caught up 2026-08-13** (PR BV-BRC#4, merge `b43ec46` of fork main
+  `a2020d6`): the two trees are now **byte-identical** (`git diff a2020d6
+  b43ec46` empty). Release history still differs — upstream's latest *release*
+  is v2.0.1, the fork is at **v2.0.13**.
+- **The release tooling is repo-agnostic and fully present upstream**
+  (`release.yml` registered + active, Actions enabled, all six `build-*.sh` and
+  `scripts/version.sh` with exec bits). Everything keys off
+  `${{ github.repository }}` / `GITHUB_REPOSITORY`, so a `v*` tag pushed to
+  BV-BRC would build and upload to BV-BRC correctly.
+- **The one blocker to releasing from upstream is the secret.** As of 2026-08-13
+  `BV-BRC/BV-BRC-Go-SDK` has **zero** Actions secrets — no repo secret, no
+  org-visible secret, no environments — so `conda-publish` would fail at its
+  last step. Add `ANACONDA_API_TOKEN` there (see conda section below) and
+  upstream can become the release origin.
 
 Build:
 ```bash
@@ -443,6 +455,11 @@ sent Go's default `Go-http-client/1.1`. `P3_USER_AGENT`, `WithUserAgent` and
   so such a binary reports `bvbrc-go-sdk/unknown`. Use `make` (or a build
   script) for anything whose UA matters. `go install …@v2.0.12` is fine — the
   fallback reads the module version.
+- **Check a shipped binary** without running it: `go version -m <binary> | grep
+  ldflags` prints the `-X …/version.Version=<v>` it was built with. Confirmed on
+  the v2.0.13 release tarball (`-s -w -X …version.Version=2.0.13`) — v2.0.13 is
+  the first release whose artifacts carry the tag version instead of the old
+  hardcoded `1.0.0`.
 
 #### Cutting a release (tag push → CI)
 
@@ -462,8 +479,9 @@ gh run list --repo olsonanl/BV-BRC-Go-SDK --workflow release.yml --limit 3
 ```
 
 - **Tag the fork, not upstream** — the Actions secrets live there (see the intro
-  above). Latest: **v2.0.12** (2026-08-12, at fork-main merge `68cffe6`, which
-  carried the read-library dialect fixes).
+  above). Latest: **v2.0.13** (2026-08-13, at fork-main merge `a2020d6`, which
+  carried the SRA-validation / paired-end-parity / versioned-UA work); before it,
+  v2.0.12 (2026-08-12, `68cffe6`, read-library dialect fixes).
 - **Tags here are lightweight** by convention (`git cat-file -t v2.0.11` →
   `commit`). Keep matching; nothing depends on annotation, but consistency
   makes `git describe` behave predictably.
@@ -476,15 +494,60 @@ gh run list --repo olsonanl/BV-BRC-Go-SDK --workflow release.yml --limit 3
   requires one. The `release` job therefore creates it as a **prerelease** if
   absent, and force-publishes (`--draft=false`) an existing draft: draft releases
   do not serve `releases/download/<tag>/`, which conda's checksum fetch and the
-  recipe's `source: url:` both read (they 404 against a draft). Flip prerelease →
-  release by hand once the artifacts look right.
-- **Gotcha — `ANACONDA_API_TOKEN`** (repo secret) needs both `api:write` **and**
-  `api:read`; a write-only token fails the upload late, after everything else
-  has succeeded.
+  recipe's `source: url:` both read (they 404 against a draft). **Check the flag
+  rather than assuming it:** for v2.0.13 the create path ran (`gh release create
+  … --prerelease` printed the release URL) yet the result came out
+  `isPrerelease: false, isDraft: false` — a full release needing no manual flip.
+  Unexplained; `gh release view <tag> --json isDraft,isPrerelease` settles it.
 - **Gotcha — this workstation's SSH to GitHub is broken** (`Permission denied
   (publickey)`, no `ssh-askpass`). Push with the explicit HTTPS URL as above so
   `gh`'s credential helper supplies the token; `git push origin v…` over SSH
   will fail.
+
+#### conda publishing (anaconda.org/bv-brc)
+
+The `conda-publish` job builds four `noarch`-less platform packages
+(linux-64 / linux-aarch64 / osx-64 / osx-arm64) from the **release tarballs**,
+not from source, and uploads them as `bvbrc-cli`.
+
+- **Nothing in the conda path is bound to the fork.** `meta.yaml` takes the
+  download repo from `environ.get("GITHUB_REPOSITORY", "BV-BRC/BV-BRC-Go-SDK")`,
+  `scripts/update-conda-recipe.sh` uses the same fallback for its checksum
+  fetch, and the workflow passes `${{ github.repository }}`. The only literal
+  `olsonanl` is `extra: recipe-maintainers:` — cosmetic, read by nothing.
+- **The destination is already org-owned:** `api.anaconda.org/package/bv-brc/
+  bvbrc-cli` reports owner `BV-BRC` (`user_type: org`), file owner `bv-brc`.
+  Both repos would publish to the same channel, so the binding that actually
+  matters is the **token identity**, not the repo — it must belong to an account
+  with upload rights to the `bv-brc` org.
+- **`ANACONDA_API_TOKEN`** needs both `api:write` **and** `api:read`; a
+  write-only token fails the upload late, after everything else has succeeded.
+- **Never tag the same version in both repos** — the upload is `--force`, so the
+  second run silently overwrites the first's package.
+- The committed `sha256` values in `meta.yaml` are stale placeholders by design;
+  `update-conda-recipe.sh` patches them in CI from the release just published.
+
+#### Homebrew (considered, not implemented)
+
+No formula, tap, or `brew` job exists — `GO_PORT_PLAN.md:650` lists it as an
+aspiration only. If it gets built:
+
+- **Use a `BV-BRC/homebrew-cli` tap, not homebrew-core** — core won't accept a
+  formula that installs pre-built binaries, and this repo wouldn't clear its
+  notability bar. Casks take binaries but add quarantine/`xattr` handling that
+  formulae avoid.
+- The release assets already fit: brew strips the one top-level
+  `bvbrc-cli-<ver>-<platform>/` dir, so the body is `bin.install
+  Dir["bin/p3-*"]` under `on_macos`/`on_linux` × `on_arm`/`on_intel`, with the
+  sha256s from the `-checksums.sha256` asset.
+- A publish job needs a **second secret** — `GITHUB_TOKEN` can't push to another
+  repo, so committing the rendered formula to the tap needs a PAT.
+- **If ever built from source instead**, the formula must pass
+  `-ldflags "-X …/version.Version=#{version}"`; a plain `go build` from a source
+  tarball has no VCS data and `Main.Version` is `(devel)`, so the UA would report
+  `bvbrc-go-sdk/unknown`.
+- Installing 101 `p3-*` binaries into `/opt/homebrew/bin` will shadow (or be
+  shadowed by) a dev_container `p3_cli` install — same names, different tools.
 
 #### Archive layout
 
