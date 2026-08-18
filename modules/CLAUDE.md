@@ -432,25 +432,39 @@ The Go SDK provides **101 CLI tools** mirroring `p3_cli`, plus Go library
 packages for programmatic API access. Go packages: `api`, `appservice`, `auth`,
 `workspace`.
 
-**Releases are cut from the fork `olsonanl/BV-BRC-Go-SDK`, not from
-`BV-BRC/BV-BRC-Go-SDK`** — the fork holds the Actions secrets. Upstream is synced
-periodically with a whole-fork-main PR, not per-fix PRs. Local release artifacts
-land in `BV-BRC-Go-SDK/dist/`, but the real ones come from CI (below).
+**Releases are cut from `BV-BRC/BV-BRC-Go-SDK` as of 2026-08-18** — the
+`ANACONDA_API_TOKEN` secret was added there on 2026-08-17, which was the only
+thing that had kept the origin on the `olsonanl` fork. `RELEASING.md` in the
+repo is the procedure of record. Local release artifacts land in
+`BV-BRC-Go-SDK/dist/`, but the real ones come from CI (below).
 
-- **Upstream caught up 2026-08-13** (PR BV-BRC#4, merge `b43ec46` of fork main
-  `a2020d6`): the two trees are now **byte-identical** (`git diff a2020d6
-  b43ec46` empty). Release history still differs — upstream's latest *release*
-  is v2.0.1, the fork is at **v2.0.13**.
-- **The release tooling is repo-agnostic and fully present upstream**
-  (`release.yml` registered + active, Actions enabled, all six `build-*.sh` and
-  `scripts/version.sh` with exec bits). Everything keys off
-  `${{ github.repository }}` / `GITHUB_REPOSITORY`, so a `v*` tag pushed to
-  BV-BRC would build and upload to BV-BRC correctly.
-- **The one blocker to releasing from upstream is the secret.** As of 2026-08-13
-  `BV-BRC/BV-BRC-Go-SDK` has **zero** Actions secrets — no repo secret, no
-  org-visible secret, no environments — so `conda-publish` would fail at its
-  last step. Add `ANACONDA_API_TOKEN` there (see conda section below) and
-  upstream can become the release origin.
+- **The fork is now a dev fork, and its `Release` workflow is disabled**
+  (`disabled_manually`, 2026-08-18). Both repos publish to the same
+  `anaconda.org/bv-brc/bvbrc-cli` channel with `--force`, so a stray `v*` tag on
+  the fork would silently overwrite a package published from BV-BRC. Fork `main`
+  was fast-forwarded to BV-BRC `main` (`1972a58`) at the same time. **Re-enable
+  it only if you also move the release origin back.**
+- **Tag numbering does not restart.** v2.0.2–v2.0.13 were cut from the fork, so
+  BV-BRC's tags jump **v2.0.1 → v2.0.14**; the sequence belongs to the product,
+  not the repo, and conda already serves up to 2.0.13. Those intermediate tags
+  are absent from BV-BRC — do **not** backfill them by pushing: each matches
+  `v*` and would re-run a full release, republishing that version's conda
+  package with freshly built binaries. Disable the workflow first if you ever do.
+- **The tooling never was fork-bound.** `meta.yaml` and
+  `scripts/update-conda-recipe.sh` take the download repo from
+  `GITHUB_REPOSITORY` (workflow passes `${{ github.repository }}`); all six
+  `build-*.sh` and `scripts/version.sh` are present with exec bits. Verified on
+  BV-BRC 2026-08-18: Actions enabled, `Release` **active**, default workflow
+  permissions **write** (needed by `gh release create`/`upload`), one repo
+  secret (`ANACONDA_API_TOKEN`), no org secrets, no environments.
+- **Not verifiable without a run:** whether that token's identity has upload
+  rights to the `bv-brc` org and both `api:read`+`api:write`. `conda-publish` is
+  last and independent, so a bad token still leaves the GitHub release, archives
+  and `.sif`s intact — fix and `gh run rerun --job <conda-job-id>`.
+- **Upstream history:** BV-BRC `main` is at `1972a58` (PR BV-BRC#5, merged
+  2026-08-18, carrying httpdiag + the product-identity UA work). Before that,
+  `b43ec46` (PR BV-BRC#4) had made the two trees byte-identical at fork main
+  `a2020d6`.
 
 Build:
 ```bash
@@ -470,15 +484,42 @@ each platform into separate dirs and merge manually.
 
 #### Version stamping and the User-Agent (2026-08)
 
-The top-level **`version`** package holds the build version and derives the
-User-Agent every SDK HTTP client sends: **`bvbrc-go-sdk/<version>`** (e.g.
-`bvbrc-go-sdk/2.0.12`). It replaced the fixed `BV-BRC P3 Client`, and is now set
-on the data API (`api`), Workspace and AppService JSONRPC, Shock downloads,
-`auth` login, and NCBI eutils (`sra`) — the JSONRPC/Shock/login calls previously
-sent Go's default `Go-http-client/1.1`. `P3_USER_AGENT`, `WithUserAgent` and
-`--user-agent` still override. Verified against both `www.bv-brc.org/api` and
-`www.patricbrc.org/api`: the new UA gets 200, `libwww-perl` still gets 403.
+The top-level **`version`** package holds the build version and the product
+identity, and derives from them the User-Agent every SDK HTTP client sends. It
+replaced the fixed `BV-BRC P3 Client`, and is now set on the data API (`api`),
+Workspace and AppService JSONRPC, Shock downloads, `auth` login, and NCBI
+eutils (`sra`) — the JSONRPC/Shock/login calls previously sent Go's default
+`Go-http-client/1.1`.
 
+- **Three identities, and the UA names the product, not the library**
+  (revised 2026-08-18): **`bvbrc-cli-go/<version>`** from the `p3-*` tools,
+  **`bvbrc-auth-go/<version>`** from `p3-login`, and `bvbrc-go-sdk/<version>`
+  only from a program that links these packages as a library. Mirrors the Perl
+  `bvbrc-cli-perl` / `bvbrc-auth-perl`. `P3_USER_AGENT` (whole string),
+  `WithUserAgent` and `--user-agent` still override, in that order over the
+  product.
+- **The product is declared in the source, not stamped by the build** — the
+  opposite of the version, because unlike the version it *is* knowable from the
+  source, and a `go install …/cmd/p3-ls@v2` build should still identify itself.
+  97 commands blank-import **`internal/cliproduct`** (its `init` calls
+  `version.SetProduct`); `cmd/p3-login/main.go` calls
+  `version.SetProduct(version.AuthProduct)` itself. `p3-echo`, `p3-fasta-md5`
+  and `p3-merge` make no requests and declare nothing.
+  **`TestEveryCommandDeclaresAProduct`** (in `internal/cliproduct`) parses every
+  `cmd/*/main.go` and fails if a new command forgets — without it a forgotten
+  import silently reverts that tool to `bvbrc-go-sdk`.
+- **Perl's `P3_CLIENT_PRODUCT` is deliberately not read on the Go side.** A Perl
+  `p3-*` wrapper exports it, so honoring it would make a Go tool invoked from
+  one announce itself as `bvbrc-cli-perl`. Go has a compile-time seam and does
+  not need the environment one.
+- **Don't cache `version.UserAgent()` in a package-level var:** an imported
+  package initializes *before* the `main` package's `init`, so it would miss the
+  product. `api.DefaultUserAgent` is exactly this and is therefore the library
+  name only — `NewClient` resolves the real UA per request.
+- Verified live 2026-08-18: `bvbrc-cli-go` and `bvbrc-auth-go` (with and without
+  a version suffix) all get **200** from `www.patricbrc.org/api` while
+  `libwww-perl` gets 403, and a plain **401** from
+  `user.patricbrc.org/authenticate` — neither new name is on the 1010 list.
 - **Where the version comes from:** `scripts/version.sh` — `$VERSION` if set
   (the release workflow sets it from the pushed tag), else the tag when HEAD is
   exactly tagged (leading `v` stripped), else the short commit hash
@@ -490,36 +531,71 @@ sent Go's default `Go-http-client/1.1`. `P3_USER_AGENT`, `WithUserAgent` and
   or hash.
 - **Gotcha:** a bare `go build -buildvcs=false ./...` stamps nothing, and
   `-buildvcs=false` also denies the `debug.ReadBuildInfo` fallback its VCS data,
-  so such a binary reports `bvbrc-go-sdk/unknown`. Use `make` (or a build
-  script) for anything whose UA matters. `go install …@v2.0.12` is fine — the
-  fallback reads the module version.
+  so such a binary reports `bvbrc-cli-go/unknown` — right product, no version.
+  Use `make` (or a build script) for anything whose UA matters.
+- **`go install …/cmd/p3-ls@v2.0.x` does not work at all** (measured
+  2026-08-18, corrects an earlier claim here that it was fine): `go.mod` is
+  `module github.com/BV-BRC/BV-BRC-Go-SDK` with **no `/v2` suffix**, so the
+  proxy rejects every v2 tag — `module contains a go.mod file, so module path
+  must match major version ("…/v2")`. `@latest` degrades to a pseudo-version
+  (`v0.0.0-<date>-<hash>`). Nothing distributes this way today; fixing it means
+  renaming the module to `…/v2` (rewrites every import path) or a v1 line.
 - **Check a shipped binary** without running it: `go version -m <binary> | grep
   ldflags` prints the `-X …/version.Version=<v>` it was built with. Confirmed on
   the v2.0.13 release tarball (`-s -w -X …version.Version=2.0.13`) — v2.0.13 is
   the first release whose artifacts carry the tag version instead of the old
   hardcoded `1.0.0`.
+- **`--version`, on all 101 commands** (PR
+  https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/8, branch
+  `feature/version-flag`; `p3_cli` has no equivalent). Prints `p3-ls 2.0.14`
+  then `bvbrc-cli-go/2.0.14 linux/amd64 go1.25.6` — the second line is the
+  **exact UA that binary sends**, so it shows the product and any
+  `P3_USER_AGENT` override, which is the line to quote in a 1010 report. An
+  unstamped build says `unknown` in both.
+  - `main` calls **`cliversion.Execute(rootCmd)`**, not `rootCmd.Execute()`.
+    `internal/cliversion` is a **leaf** package (cobra + `version` only) on
+    purpose: `internal/cli` pulls in `api` and `sra`, which would make
+    `p3-echo`/`p3-fasta-md5`/`p3-merge` link the API client just to print a
+    version. **`TestEveryCommandSupportsVersion`** enforces the call, mirroring
+    `TestEveryCommandDeclaresAProduct` — skipping it still builds and still
+    works, it just silently has no flag.
+  - **Why the flag is declared by hand:** cobra's `InitDefaultVersionFlag`
+    claims **`-v`** whenever that shorthand is free, and 8 commands already bind
+    it (5 `--verbose`, 3 `--reverse`) — the default would make `-v` mean
+    "version" in 93 tools and something else in 8. cobra still does the
+    printing; it only looks up a bool flag named `version`.
+  - The UA reaches the output via the command's **`Annotations`**, not the
+    template source, so a `{{…}}` in `P3_USER_AGENT` prints verbatim instead of
+    being executed by `text/template`.
 
 #### Cutting a release (tag push → CI)
 
-**Pushing a `v*` tag to the fork is the entire release procedure.** There is no
-manual artifact upload; `.github/workflows/release.yml` triggers on
-`push: tags: ['v*']` and derives everything from the tag
-(`VERSION=${GITHUB_REF_NAME#v}`).
+**Pushing a `v*` tag to `BV-BRC/BV-BRC-Go-SDK` is the entire release
+procedure.** There is no manual artifact upload;
+`.github/workflows/release.yml` triggers on `push: tags: ['v*']` and derives
+everything from the tag (`VERSION=${GITHUB_REF_NAME#v}`). Full procedure:
+`BV-BRC-Go-SDK/RELEASING.md`.
 
 ```bash
 cd modules/BV-BRC-Go-SDK
-git fetch <remote> main && git merge --ff-only <remote>/main   # tag a commit that is on main
+git fetch upstream main && git merge --ff-only upstream/main   # tag a commit that is on main
 export PATH=/home/olson/P3/go-1.25.6/go/bin:$PATH
-go build -buildvcs=false ./... && go test ./internal/...       # sanity-check the exact commit
-git tag v2.0.12 <commit>                                       # lightweight, matching existing tags
-git push https://github.com/olsonanl/BV-BRC-Go-SDK.git v2.0.12
-gh run list --repo olsonanl/BV-BRC-Go-SDK --workflow release.yml --limit 3
+go build -buildvcs=false ./... && go test ./...                # CI does NOT run tests
+git tag v2.0.14 <commit>                                       # lightweight, matching existing tags
+git push https://github.com/BV-BRC/BV-BRC-Go-SDK.git v2.0.14
+gh run list --repo BV-BRC/BV-BRC-Go-SDK --workflow release.yml --limit 3
 ```
 
-- **Tag the fork, not upstream** — the Actions secrets live there (see the intro
-  above). Latest: **v2.0.13** (2026-08-13, at fork-main merge `a2020d6`, which
-  carried the SRA-validation / paired-end-parity / versioned-UA work); before it,
-  v2.0.12 (2026-08-12, `68cffe6`, read-library dialect fixes).
+- **Tag BV-BRC, not the fork** (changed 2026-08-18; the fork's workflow is
+  disabled — see the intro above). Next release is **v2.0.14**. Latest so far:
+  **v2.0.13** (2026-08-13, from the fork, at fork-main merge `a2020d6`, which
+  carried the SRA-validation / paired-end-parity / versioned-UA work); before
+  it, v2.0.12 (2026-08-12, `68cffe6`, read-library dialect fixes).
+- **The trigger is the tag push, not the release object** — there is no
+  `on: release:`. A **draft** release creates no tag, so it fires nothing; and
+  wrapping a release around an already-pushed tag fires nothing either. The
+  workflow file is read from the **tagged commit**, so tagging a commit older
+  than `release.yml` runs nothing.
 - **Tags here are lightweight** by convention (`git cat-file -t v2.0.11` →
   `commit`). Keep matching; nothing depends on annotation, but consistency
   makes `git describe` behave predictably.
@@ -548,20 +624,27 @@ The `conda-publish` job builds four `noarch`-less platform packages
 (linux-64 / linux-aarch64 / osx-64 / osx-arm64) from the **release tarballs**,
 not from source, and uploads them as `bvbrc-cli`.
 
-- **Nothing in the conda path is bound to the fork.** `meta.yaml` takes the
+- **Nothing in the conda path was ever bound to a repo.** `meta.yaml` takes the
   download repo from `environ.get("GITHUB_REPOSITORY", "BV-BRC/BV-BRC-Go-SDK")`,
   `scripts/update-conda-recipe.sh` uses the same fallback for its checksum
-  fetch, and the workflow passes `${{ github.repository }}`. The only literal
-  `olsonanl` is `extra: recipe-maintainers:` — cosmetic, read by nothing.
-- **The destination is already org-owned:** `api.anaconda.org/package/bv-brc/
-  bvbrc-cli` reports owner `BV-BRC` (`user_type: org`), file owner `bv-brc`.
-  Both repos would publish to the same channel, so the binding that actually
-  matters is the **token identity**, not the repo — it must belong to an account
-  with upload rights to the `bv-brc` org.
+  fetch, and the workflow passes `${{ github.repository }}`. The one literal
+  `olsonanl` was `extra: recipe-maintainers:` (cosmetic, read by nothing) —
+  updated to `BV-BRC` in PR BV-BRC#6.
+- **The destination is org-owned:** `api.anaconda.org/package/bv-brc/bvbrc-cli`
+  reports owner `BV-BRC` (`user_type: org`), file owner `bv-brc`. Both repos
+  publish to the same channel, so the binding that actually matters is the
+  **token identity**, not the repo — it must belong to an account with upload
+  rights to the `bv-brc` org. That is the one part of the BV-BRC setup that
+  cannot be checked without a run.
 - **`ANACONDA_API_TOKEN`** needs both `api:write` **and** `api:read`; a
   write-only token fails the upload late, after everything else has succeeded.
-- **Never tag the same version in both repos** — the upload is `--force`, so the
-  second run silently overwrites the first's package.
+  `conda-publish` is last and `needs: release`, so such a failure leaves the
+  GitHub release, archives and `.sif`s intact — fix the secret and
+  `gh run rerun --job <conda-job-id>` rather than retagging.
+- **Never publish the same version twice** — the upload is `--force`, so the
+  second run silently overwrites the first's package. This is why the fork's
+  workflow is disabled, and why a botched release is fixed by burning the
+  number, not by deleting and re-pushing the tag.
 - The committed `sha256` values in `meta.yaml` are stale placeholders by design;
   `update-conda-recipe.sh` patches them in CI from the release just published.
 
@@ -583,7 +666,8 @@ aspiration only. If it gets built:
 - **If ever built from source instead**, the formula must pass
   `-ldflags "-X …/version.Version=#{version}"`; a plain `go build` from a source
   tarball has no VCS data and `Main.Version` is `(devel)`, so the UA would report
-  `bvbrc-go-sdk/unknown`.
+  `bvbrc-cli-go/unknown` (the product is declared in the source, so only the
+  version goes missing).
 - Installing 101 `p3-*` binaries into `/opt/homebrew/bin` will shadow (or be
   shadowed by) a dev_container `p3_cli` install — same names, different tools.
 
@@ -668,7 +752,7 @@ Go submit commands now match Perl behaviour in these areas:
   (`ReadSpec.pm:255`), never the comma; and `p3-submit-genome-assembly.pl:117`
   declares its own `paired-end-lib=s{2}` without ReadSpec's `|paired-end-libs`
   alias, so that one Perl tool rejects the plural. Go is a superset of both.
-- **Configurable User-Agent** — every SDK HTTP client sends one (see "Version stamping" below); overridable via `P3_USER_AGENT` or `WithUserAgent`/`--user-agent`. Required because `patricbrc.org` blocks `libwww-perl` via Cloudflare (error 1010); the Perl side sets `BV-BRC P3 Client` in `P3DataAPI`.
+- **Configurable User-Agent** — every SDK HTTP client sends one (see "Version stamping" below); overridable via `P3_USER_AGENT` or `WithUserAgent`/`--user-agent`. Required because `patricbrc.org` blocks `libwww-perl` via Cloudflare (error 1010). Both sides now name the product: Go sends `bvbrc-cli-go`/`bvbrc-auth-go`, Perl `bvbrc-cli-perl`/`bvbrc-auth-perl`.
 - **Enum alignment** — Snippy in variation mapper/caller; `MASTADENOA` (not `MASTADENO_A`) in SubspeciesClassification; `progressiveMauve` in MSA.
 
 #### Read-library parameter dialects (`internal/readspec`, 2026-08)
