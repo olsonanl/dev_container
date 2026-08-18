@@ -135,10 +135,45 @@ indistinguishable from a bad password.
   allowlisted agent; every other LWP client (`P3AuthLogin`, `P3TokenValidator`,
   `P3UserAPI`, `P3Utils`, `P3WorkspaceClient`, `RASTlib`) sent LWP's default —
   i.e. exactly the string the 1010 rule bans. All now build their agent with
-  **`P3ClientUA::new_ua()`**, preserving the existing precedence
-  `$FIG_Config::p3_data_api_user_agent` → `$ENV{P3_USER_AGENT}` →
-  `"BV-BRC P3 Client"`. Note FIG_Config **wins over the env var** — in a
-  deployment that sets it, `P3_USER_AGENT=…` appears to do nothing.
+  **`P3ClientUA::new_ua()`**, the single definition of the string.
+- **UA precedence (revised 2026-08-18):** `$ENV{P3_USER_AGENT}` → **product
+  identity** → `$FIG_Config::p3_data_api_user_agent` → `"BV-BRC P3 Client"`.
+  The original order had FIG_Config first, which made the other two dead code:
+  `p3_data_api_user_agent` is set (to the stock string) in **every** deployment
+  by `p3_seedtk/FIG_Config.pm.tt:50`, so `P3_USER_AGENT=…` appeared to do
+  nothing. Read FIG_Config as "the site default for clients that have no
+  identity of their own".
+- **Product identity — how a client says which product it is.**
+  `P3ClientUA::set_product($name, $version)` in-process, or
+  **`P3_CLIENT_PRODUCT`** in the environment (whole string); an explicit
+  `set_product` beats an inherited env value. Rendered `name/version`, or a bare
+  `name` when no version is supplied. **Two products are declared today:
+  `bvbrc-cli-perl` (p3_cli, 137 scripts) and `bvbrc-auth-perl` (p3_auth —
+  `p3-login`, `p3-logout`, `p3-whoami`).**
+  - **The seam is the generated wrapper, not the source.** Each module's
+    `Makefile` sets `P3_CLIENT_PRODUCT` and puts it in `WRAP_VARIABLES`, so
+    `tools/wrap_perl.sh` bakes an `export` into every `bin/p3-*`. That is the
+    only seam covering all of p3_cli — there is no module its 137 scripts all
+    load, and the HTTP clients that talk to the API (`P3DataAPI`, `P3Utils`)
+    live in **p3_core**, so putting it there would mislabel non-CLI callers.
+  - Consequences of it being an env var: a script run **directly** (not via its
+    wrapper) has no identity, and a child process **inherits** the parent's —
+    except where the child is itself a wrapper, which re-exports and so wins
+    (`p3-login` invoked from a p3_cli tool correctly says `bvbrc-auth-perl`).
+  - **The version is deliberately absent from the source tree** — stamping is a
+    release-tooling job, mirroring the Go SDK's `-ldflags -X …version.Version`.
+    `make P3_CLI_VERSION=1.2.3` → `bvbrc-cli-perl/1.2.3`,
+    `make P3_AUTH_VERSION=1.2.3` → `bvbrc-auth-perl/1.2.3`; plain `make` gives
+    the bare name. Nothing guesses a version.
+  - **The wrappers must depend on the Makefile** (`$(BIN_PERL): Makefile`) or an
+    existing tree keeps announcing the old identity until someone empties
+    `bin/`. Put that rule **after** the `all:` target — as the first rule in the
+    file it silently becomes make's default goal.
+  - Verified live 2026-08-18: `bvbrc-cli-perl` and `bvbrc-cli-perl/1.2.3` both
+    get **200** from `www.patricbrc.org/api` (`libwww-perl` gets 403), and
+    `bvbrc-auth-perl` gets a plain **401** from `user.patricbrc.org/authenticate`
+    (i.e. reaches the origin). So the 1010 rule is a block-list of known library
+    agents, not an allowlist of one string.
 - **`P3ClientUA` lives in `p3_auth`, not `p3_core`**, purely for dependency
   ordering: `p3_core` depends on `p3_auth` (`P3AuthToken`), never the reverse,
   so `p3_auth` is the only module all three (`p3_auth`/`p3_core`/`p3_cli`) can
@@ -160,9 +195,12 @@ indistinguishable from a bad password.
   `libwww-perl` and 200 to the allowlisted string, but
   `user.patricbrc.org/authenticate` returns 401 to `libwww-perl`,
   `BV-BRC P3 Client` and `Go-http-client/1.1` alike — so as of 2026-08 the 1010
-  rule is on the **www zone, not the auth endpoint**. The login-path UA fix is
-  prophylactic; the diagnostics are what will identify an intermittent
-  rejection.
+  rule is on the **patricbrc www zone, not the auth endpoint**. The login-path
+  UA fix is prophylactic; the diagnostics are what will identify an intermittent
+  rejection. Narrower still: **`www.bv-brc.org/api` serves `libwww-perl` a 200**
+  (measured 2026-08-18) — and that is `P3DataAPI`'s *default* url, so a plain
+  `p3-*` query never reproduces a block. Reproduce by passing the patricbrc url
+  explicitly: `P3DataAPI->new("https://www.patricbrc.org/api")`.
 - **Known wart (not fixed):** `P3DataAPI`'s query loop retries a 1010 fifteen
   times with growing sleeps (~135 s) even though Cloudflare marks it
   `"retryable":false`. `solr_query_raw` dies immediately and is the fast way to
