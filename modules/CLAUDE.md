@@ -545,21 +545,30 @@ eutils (`sra`) — the JSONRPC/Shock/login calls previously sent Go's default
   the v2.0.13 release tarball (`-s -w -X …version.Version=2.0.13`) — v2.0.13 is
   the first release whose artifacts carry the tag version instead of the old
   hardcoded `1.0.0`.
-- **`--version`, on all 101 commands** (PR
+- **`--version` and `--debug-http`, on all 101 commands** (PR
   https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/8, branch
-  `feature/version-flag`; `p3_cli` has no equivalent). Prints `p3-ls 2.0.14`
-  then `bvbrc-cli-go/2.0.14 linux/amd64 go1.25.6` — the second line is the
-  **exact UA that binary sends**, so it shows the product and any
-  `P3_USER_AGENT` override, which is the line to quote in a 1010 report. An
-  unstamped build says `unknown` in both.
-  - `main` calls **`cliversion.Execute(rootCmd)`**, not `rootCmd.Execute()`.
-    `internal/cliversion` is a **leaf** package (cobra + `version` only) on
-    purpose: `internal/cli` pulls in `api` and `sra`, which would make
-    `p3-echo`/`p3-fasta-md5`/`p3-merge` link the API client just to print a
-    version. **`TestEveryCommandSupportsVersion`** enforces the call, mirroring
-    `TestEveryCommandDeclaresAProduct` — skipping it still builds and still
-    works, it just silently has no flag.
-  - **Why the flag is declared by hand:** cobra's `InitDefaultVersionFlag`
+  `feature/version-flag`). `--version` prints `p3-ls 2.0.14` then
+  `bvbrc-cli-go/2.0.14 linux/amd64 go1.25.6` — the second line is the **exact
+  UA that binary sends**, so it shows the product and any `P3_USER_AGENT`
+  override, which is the line to quote in a 1010 report. An unstamped build
+  says `unknown` in both. `p3_cli` has no `--version` equivalent.
+  - `main` calls **`cliroot.Execute(rootCmd)`**, not `rootCmd.Execute()`.
+    `internal/cliroot` is a **leaf** package (cobra + `version` + `httpdiag`,
+    all stdlib-only) on purpose: `internal/cli` pulls in `api` and `sra`, which
+    would make `p3-echo`/`p3-fasta-md5`/`p3-merge` link the API client just to
+    print a version. **`TestEveryCommandUsesTheSharedRoot`** enforces the call,
+    mirroring `TestEveryCommandDeclaresAProduct` — skipping it still builds and
+    still works, it just silently has neither flag.
+  - **`--debug-http` is the flag form of `P3_DEBUG_HTTP`**, which stays the
+    documented switch. Before this only the **40** commands carrying
+    `DataOptions` had one (`--debug`), plus `p3-login`'s bespoke copy (now
+    removed in favour of the shared flag): every `p3-submit-*`, `p3-ls`,
+    `p3-cp`, `p3-job-status` — i.e. the Workspace and AppService paths — had no
+    flag at all for the case the diagnostics exist to serve. It is a
+    `pflag.Value` that calls `httpdiag.SetEnabled(true)` from `Set`, during
+    parsing; reading a bool later would mean `PersistentPreRun` (commands define
+    their own) or `cobra.OnInitialize` (global state that accumulates).
+  - **Why `--version` is declared by hand:** cobra's `InitDefaultVersionFlag`
     claims **`-v`** whenever that shorthand is free, and 8 commands already bind
     it (5 `--verbose`, 3 `--reverse`) — the default would make `-v` mean
     "version" in 93 tools and something else in 8. cobra still does the
