@@ -428,9 +428,10 @@ handling**, so any field not in `managed-schema` is rejected at index time.
 
 ### BV-BRC-Go-SDK
 
-The Go SDK provides **101 CLI tools** mirroring `p3_cli`, plus Go library
+The Go SDK provides **138 CLI tools** — **101 `p3-*`** mirroring `p3_cli` and
+**37 `rast-*`** mirroring `genome_annotation/scripts/` — plus Go library
 packages for programmatic API access. Go packages: `api`, `appservice`, `auth`,
-`workspace`.
+`genomeannotation`, `workspace`.
 
 **Releases are cut from `BV-BRC/BV-BRC-Go-SDK` as of 2026-08-18** — the
 `ANACONDA_API_TOKEN` secret was added there on 2026-08-17, which was the only
@@ -501,8 +502,9 @@ eutils (`sra`) — the JSONRPC/Shock/login calls previously sent Go's default
 - **The product is declared in the source, not stamped by the build** — the
   opposite of the version, because unlike the version it *is* knowable from the
   source, and a `go install …/cmd/p3-ls@v2` build should still identify itself.
-  97 commands blank-import **`internal/cliproduct`** (its `init` calls
-  `version.SetProduct`); `cmd/p3-login/main.go` calls
+  134 commands blank-import **`internal/cliproduct`** (its `init` calls
+  `version.SetProduct`) — including all 37 `rast-*`, which therefore also
+  identify as `bvbrc-cli-go`; `cmd/p3-login/main.go` calls
   `version.SetProduct(version.AuthProduct)` itself. `p3-echo`, `p3-fasta-md5`
   and `p3-merge` make no requests and declare nothing.
   **`TestEveryCommandDeclaresAProduct`** (in `internal/cliproduct`) parses every
@@ -545,7 +547,8 @@ eutils (`sra`) — the JSONRPC/Shock/login calls previously sent Go's default
   the v2.0.13 release tarball (`-s -w -X …version.Version=2.0.13`) — v2.0.13 is
   the first release whose artifacts carry the tag version instead of the old
   hardcoded `1.0.0`.
-- **`--version` and `--debug-http`, on all 101 commands** (PR
+- **`--version` and `--debug-http`, on all commands** — 101 when the PR
+  landed, all 138 now that the `rast-*` family uses the same root (PR
   https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/8, branch
   `feature/version-flag`). `--version` prints `p3-ls 2.0.14` then
   `bvbrc-cli-go/2.0.14 linux/amd64 go1.25.6` — the second line is the **exact
@@ -590,16 +593,41 @@ cd modules/BV-BRC-Go-SDK
 git fetch upstream main && git merge --ff-only upstream/main   # tag a commit that is on main
 export PATH=/home/olson/P3/go-1.25.6/go/bin:$PATH
 go build -buildvcs=false ./... && go test ./...                # CI does NOT run tests
-git tag v2.0.14 <commit>                                       # lightweight, matching existing tags
-git push https://github.com/BV-BRC/BV-BRC-Go-SDK.git v2.0.14
+git tag v2.0.16 <commit>                                       # lightweight, matching existing tags
+git push https://github.com/BV-BRC/BV-BRC-Go-SDK.git v2.0.16
 gh run list --repo BV-BRC/BV-BRC-Go-SDK --workflow release.yml --limit 3
 ```
 
 - **Tag BV-BRC, not the fork** (changed 2026-08-18; the fork's workflow is
-  disabled — see the intro above). Next release is **v2.0.14**. Latest so far:
-  **v2.0.13** (2026-08-13, from the fork, at fork-main merge `a2020d6`, which
-  carried the SRA-validation / paired-end-parity / versioned-UA work); before
-  it, v2.0.12 (2026-08-12, `68cffe6`, read-library dialect fixes).
+  disabled — see the intro above). Next release is **v2.0.16**. Latest so far:
+  **v2.0.15** (2026-08-19, `0e377f3`, the `rast-*` port — first release with all
+  138 tools); before it v2.0.14 (2026-08-18, `--version`/`--debug-http`) and
+  v2.0.13 (2026-08-13, the last one cut from the fork).
+- **Verify `main` actually has the work before tagging — "merged" can be a
+  lie with stacked PRs.** A stack of PRs each based on the previous branch
+  relies on GitHub retargeting each one to `main` as its base merges. If the
+  **bottom** PR is merged into `main` first, the ones above it merge into
+  **their own base branches** and never propagate: all report `merged=true`
+  while `main` has none of the work. This happened to PRs #9/#10/#11 on
+  2026-08-19; the fix was PR #12 merging the stack tip (`feature/rast-go-commands`)
+  into `main`. Check with
+  `git ls-tree -d --name-only upstream/main cmd/ | grep -c '/rast-'`, or any
+  equivalent count of what the release is supposed to contain, **before** the
+  tag — a tag that ships the wrong tree is undone only by burning a version
+  number (the conda upload is `--force`).
+- **A full run takes ~34 min** and all 8 jobs must go green. v2.0.15 verified
+  end-to-end afterwards: release `isDraft=false isPrerelease=false`, 16 assets,
+  tarball/`.deb`/conda package each carrying **37 rast + 101 p3 = 138**, and a
+  shipped binary reporting `rast-export-SEED 2.0.15` /
+  `bvbrc-cli-go/2.0.15`. Worth repeating the artifact count check on any release
+  that adds a command family — it is the only thing that catches a packaging
+  glob that silently dropped one.
+- **`gh run view --json jobs` is not supported by the `gh` on this
+  workstation** (`Unknown JSON field: "jobs"`). Use
+  `gh api repos/BV-BRC/BV-BRC-Go-SDK/actions/runs/<id>/jobs --jq '.jobs[] | …'`
+  for per-job status. A poll loop built on the unsupported form fails every
+  cycle and, if its errors are swallowed, looks exactly like "nothing has
+  happened yet".
 - **The trigger is the tag push, not the release object** — there is no
   `on: release:`. A **draft** release creates no tag, so it fires nothing; and
   wrapping a release around an already-pushed tag fires nothing either. The
@@ -677,8 +705,10 @@ aspiration only. If it gets built:
   tarball has no VCS data and `Main.Version` is `(devel)`, so the UA would report
   `bvbrc-cli-go/unknown` (the product is declared in the source, so only the
   version goes missing).
-- Installing 101 `p3-*` binaries into `/opt/homebrew/bin` will shadow (or be
-  shadowed by) a dev_container `p3_cli` install — same names, different tools.
+- Installing 138 binaries into `/opt/homebrew/bin` will shadow (or be shadowed
+  by) a dev_container install — same names, different tools. True of both
+  families now: `p3-*` collides with `p3_cli`, `rast-*` with
+  `genome_annotation`.
 
 #### Archive layout
 
@@ -696,7 +726,7 @@ dir (so `build.sh` finds `bin/`), and the Apptainer def extracts with
 #### Apptainer / Singularity SIF images
 
 `build-apptainer.sh <distro>` (`ubuntu-22`|`ubuntu-24`|`rocky-9`) builds a `.sif`
-with the 101 `p3-*` tools preinstalled in `/usr/local/bin`. Because the binaries
+with all 138 tools preinstalled in `/usr/local/bin`. Because the binaries
 are fully static (`CGO_ENABLED=0` in `build-linux.sh`), the def just extracts the
 `linux-amd64` release tarball and installs `ca-certificates` (needed for the
 static Go binary's TLS to the data API). It reuses
@@ -708,13 +738,83 @@ The `build-apptainer` matrix job in `release.yml` (needs: `release`) builds all
 three on a tag push and attaches `bvbrc-cli-<ver>-<distro>-amd64.sif` to the
 GitHub Release; Apptainer is installed via `eWaterCycle/setup-apptainer`.
 
+#### The `rast-*` family (genome_annotation port, 2026-08)
+
+**37 `rast-*` Go commands** ported from `genome_annotation/scripts/rast-*.pl`,
+shipped first in **v2.0.15**. They are thin front-ends onto the GenomeAnnotation
+JSONRPC service: read a genome typed object (GTO) as JSON on stdin, call one
+method, write the GTO as pretty JSON on stdout. PRs
+[#9](https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/9) (packages),
+[#10](https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/10) (36 commands),
+[#11](https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/11) (`rast-export-SEED`),
+[#12](https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/12) (integration — see the
+stacked-PR gotcha below). Design: `PLAN`-era notes in the plan file; live ledger
+in `PORT_STATUS.md`.
+
+- **The names collide with the Perl wrappers on purpose.** The Go tools are
+  drop-in replacements for the 39 `rast-*` wrappers in `dev_container/bin/`;
+  PATH order decides which runs. Same situation `p3-*` already has with
+  `p3_cli`, now in two families.
+- **Scope is 37 of 39.** Out: `rast-process-genome-batch` and
+  `rast-download-genome-batch`, which need Shock/HandleService **upload** (the
+  Go `workspace` package has download only) — and whose Perl originals do not
+  compile in this tree anyway (`Bio::KBase::HandleService` is absent).
+- **`genomeannotation/`** (repo root, peer of `appservice`): JSONRPC 1.1 client,
+  `DefaultURL = https://p3.theseed.org/services/genome_annotation`, method
+  prefix `GenomeAnnotation.`, 30-min default timeout overridable by
+  **`CDMI_TIMEOUT`** (seconds, mirroring Perl). **Auth is optional** — several
+  methods (`default_workflow`, `enumerate_special_protein_databases`) answer
+  unauthenticated, so the `Authorization` header goes out only when a token
+  exists and a missing token is never an error.
+- **GTOs are never decoded.** Every pass-through method takes and returns
+  `json.RawMessage`. Decoding through `map[string]interface{}` would renumber
+  integers as floats and reorder keys. Pretty-print is
+  `json.Indent(…, "", "   ")` — 3 spaces, matching `JSON::XS->new->pretty`.
+  Key order still differs from Perl, so **parity is semantic (`jq -S .`), not
+  byte-for-byte** — except `rast-export-SEED`, which is byte-identical
+  (`diff -r`).
+- **`internal/rastcli`** is the `CmdHelper.pm` equivalent (`-i/-o/--url`, the
+  five `get_params_for_*` groups, the 14 export formats). The load-bearing
+  detail is Perl's `if defined`: a param enters the map **only if the user set
+  the flag** → Go `cmd.Flags().Changed(name)`. An unset flag must be absent, not
+  zero.
+- **`internal/seeddir`** is the port of `GenomeTypeObject::write_seed_dir`, the
+  one piece with real algorithmic content and the only one that can be wrong
+  silently. `map_CDS_to_peg` is hardcoded by the script: type `CDS` becomes
+  `peg` everywhere, **including inside the feature id** (`.CDS.` → `.peg.`).
+  - **`seeddir.Scalar` — the raw-JSON principle applied to scalars.** An
+    annotation timestamp arrives as `1787100528.18559`; decoded to `float64`,
+    Go prints `1.78710052818559e+09` and the file diverges. Keep the raw token.
+- **Genetic-code divergence, deliberate.** `SeedUtils::genetic_code` spells its
+  table-2/3 overrides in **RNA** (`AUA`, `UGA`, `CUU`) against a **DNA**-keyed
+  table, so in Perl codes 2 and 3 silently translate as code 1. Go uses the real
+  NCBI tables and **errors on an unsupported code** rather than mistranslating.
+  Codes 1/4/11 (everything in this tree) are identical either way.
+- **Three other on-purpose divergences from Perl:** `rast-process-genome`
+  rejects the `--batch-input-*` flags (declared but never read in Perl) while
+  `--timeout` actually works; `rast-query-classifier-groups` and `rast-classify`
+  sort their output.
+- **Packaging is prefix-glob-driven and was `p3-*`-only.** Widened in PR #9:
+  `COMMANDS=$(ls -d cmd/*/ …)` in all four `build-*.sh`, rpm `%files` lists both
+  `/usr/local/bin/p3-*` and `/usr/local/bin/rast-*`, `PREFIXES=(p3 rast)` in
+  `conda-recipe/build.sh`, and `scripts/make-readme.sh` counts dynamically.
+  **`packaging_test.go`** (hermetic, reads the scripts as text) derives the
+  prefix set from `cmd/` and fails if any of those sites misses a family — the
+  next family fails loudly instead of shipping half a toolkit.
+- **README install-glob bug found by this work:** the shipped install
+  instructions said `sudo cp .../bin/p3-* /usr/local/bin/`, which would have
+  installed 101 of 138. All four Unix occurrences are now `bin/*`, Windows is
+  `Copy-Item …\*.exe`, and the macOS quarantine command names both families.
+
 #### Relationship to p3_cli (porting)
 
 The Go SDK is a **curated subset** of `p3_cli` (not a full mirror): ~33 of the
 137 Perl scripts are ported, one Go program per `cmd/<name>/main.go`. The build
 enumerates commands dynamically (`Makefile` uses `$(wildcard cmd/*)`;
-`build-*.sh` use `ls -d cmd/p3-*/`), so a new `cmd/` directory is picked up
-automatically — no registration needed.
+`build-*.sh` use `ls -d cmd/*/`), so a new `cmd/` directory is picked up
+automatically — no registration needed. (The `rast-*` family mirrors
+`genome_annotation/scripts/` instead and is complete at 37 of 39; see its
+section above.)
 
 `BV-BRC-Go-SDK/GO_PORT_PLAN.md` documents the original port design.
 `BV-BRC-Go-SDK/PORT_STATUS.md` is the live ledger: per-command "synced to"
