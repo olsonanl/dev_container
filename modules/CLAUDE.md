@@ -428,7 +428,7 @@ Shock. Remotes here: `origin` = `olsonanl/Workspace` (fork), `upstream` =
 ### p3_core — RQL `terms()` vs `in()` for ID lists
 
 **The rule is `terms()` for a large value list (hundreds+), `in()` for a handful
-— but as of 2026-09-03 no deployment can be trusted with `terms()`, so
+— but as of 2026-09-03 production still answers `terms()` with a 400, so
 `P3DataAPI` sends `in()` and gates the switch behind `P3_RQL_TERMS`** (see
 `P3DataAPI::id_list_op`, whose POD carries the measurements). Read the rest of
 this section as the design and the evidence for that gate, not as current
@@ -464,31 +464,43 @@ are — that is irrelevant.
 - Six sites in `P3DataAPI.pm` now call **`id_list_op()`** instead of naming an
   operator (2026-09-03): `lookup_sequence_data` (md5 batch), the two `$id_field`
   feature-id lookups, and the three `genome_id` list queries.
-- **Two deployment defects, either of which alone forces the `in()` default.**
-  `t/client-tests/p3-rql-terms.t` is the probe — it skips unless
-  `P3_TERMS_TEST_URL` names an endpoint, and checks all three conditions that
-  must hold before flipping.
-  1. **Production does not implement the operator.** `www.bv-brc.org/api` and
-     `p3.theseed.org/services/data_api` both answer **400**; only
-     `alpha.bv-brc.org/api` answers 200. The error is not "unknown operator" but
-     Solr's `{"msg":"undefined field object","code":400}` — the older `rql.js`
-     mangles the clause rather than rejecting it. `www.bv-brc.org/api` is
-     `P3DataAPI`'s **default url**, so an unconditional swap breaks every caller.
-  2. **Where it does work, it truncates on `genome_feature`.** On alpha,
-     `terms()` with a `limit` of **≥ 10,000** returns **HTTP 200 with a one-byte
-     body (`[`)** whenever the match is exhausted before the limit. Bisected:
-     `limit(9999)` → 250 rows, `limit(10000)` → truncated; `in()` at
-     `limit(25000)` → 250 rows; a *full* page (25,000 of many more) → fine; the
-     `feature_sequence` core → unaffected at any limit. `chunk_size` is 25,000,
-     so every paged `genome_feature` query hits it. Through this module the GET
-     path 502s and `submit_query` dies rather than silently short-reading — but
-     the POST path really does return a successful-looking truncated body, so
-     do not lean on that.
-- **The operator itself is correct** — measured against alpha, `in()` and
-  `terms()` agree row for row on `retrieve_genome_metadata`, both
-  `lookup_sequence_data` paths and `retrieve_ssu_rnas`, and the md5 lookup that
-  wedged the BLAST build runs about **twice as fast** (1.95s → 0.97s). The two
-  failing sites fail on defect 2, not on a semantic difference.
+- **One deployment defect still forces the `in()` default: production does not
+  implement the operator.** `www.bv-brc.org/api` and
+  `p3.theseed.org/services/data_api` both answer **400**; only
+  `alpha.bv-brc.org/api` answers 200. The error is not "unknown operator" but a
+  Solr exception (`A Database Error Occured` /
+  `org.apache.solr.common.SolrException`; an earlier build phrased it
+  `{"msg":"undefined field object","code":400}`) — the older `rql.js` mangles
+  the clause rather than rejecting it. `www.bv-brc.org/api` is `P3DataAPI`'s
+  **default url**, so an unconditional swap breaks every caller.
+  `t/client-tests/p3-rql-terms.t` is the probe — skips unless
+  `P3_TERMS_TEST_URL` names an endpoint, checks all three conditions that must
+  hold before flipping; `p3-rql-terms-bench.pl` next door is the timing
+  counterpart.
+- **Two further alpha defects existed and were fixed by an API update on
+  2026-09-03.** Both are now regression targets rather than known-bad state —
+  worth knowing because each hid from an obvious test.
+  1. **Truncation on `genome_feature`.** `terms()` with a `limit` of **≥ 10,000**
+     returned **HTTP 200 with a one-byte body (`[`)** whenever the match was
+     exhausted before the limit: `limit(9999)` → 250 rows, `limit(10000)` →
+     truncated. `chunk_size` is 25,000, so every paged `genome_feature` query hit
+     it — but a *small* limit hid it completely, which is why it survived the
+     first round of testing. The `feature_sequence` core was never affected.
+  2. **A co-occurring clause made `terms()` much slower.** Moving the id list to
+     `&fq=` left whatever else was in the query as the *scored* clause, so a
+     low-selectivity companion became the dominant cost. Same 6,053 `patric_id`s:
+     id list alone **0.86×** (a win), id list + `in(feature_type,(mat_peptide,CDS))`
+     **1.65×** (a loss) — and that second shape is exactly what
+     `retrieve_protein_feature_sequence` / `retrieve_nucleotide_feature_sequence`
+     send, making the former **1.93× slower** end to end. Post-fix the companion
+     clause is nearly free (0.35× / 0.41×) and that call runs **0.79×**. The
+     general lesson survives the fix: benchmark the *query shape the code sends*,
+     not the operator in isolation.
+- **The operator is correct and now uniformly faster where deployed.** Against
+  alpha, `in()` and `terms()` agree row for row at every size on both cores, and
+  `terms()` wins throughout — 0.39–0.90× on `genome_feature`, 0.49–0.85× on
+  `feature_sequence` (n = 100 … 15,000). Per call site: protein 3.12s → 2.56s,
+  nucleotide 4.27s → 2.64s, md5 aa 1.54s → 1.15s, na 2.53s → 1.19s.
 - **This is distinct from the other ID-list mechanism in the tree**, which is
   easy to confuse with it: `BatchJoiner` / `CrossCollectionSourceStream` also
   build `{!terms}` filters, but do it in JS via `fetchByIds` rather than through
