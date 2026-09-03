@@ -262,6 +262,11 @@ that must be kept in sync:
 - **Verify before running:** `grep -l jsporter tests/*.json` should return nothing,
   and every referenced input must resolve as the running user (`p3-ls` without
   `-A`). Applied 2026-07 to `p3_msa` and `bvbrc_metacats` (see Module Notes).
+- **`p3-ls` exits 0 on a missing path**, printing `<path>: Object not found` on
+  **stderr** — so `p3-ls "$p" >/dev/null 2>&1` is always true and is not an
+  existence test. Test the output instead: `p3-ls -d` echoes the path on stdout
+  when it exists and prints nothing there when it does not, i.e.
+  `[[ -n $(p3-ls -d "$p" 2>/dev/null) ]]`.
 
 ## Module-Specific Documentation
 
@@ -319,6 +324,24 @@ directly via `DBI`, host-bound) and the **JSONRPC API** in `AppService.spec` +
   `p3x-load-app-specs` against the current container** so both paths agree.
   (Verified 2026-07: a stale DB spec dropped `lowvan_min_contig_length` on a staff
   `--preflight` GenomeAnnotationGenbank job; reloading specs fixed it.)
+- **Read the DB cache without DB access — `enumerate_apps` returns it.** This is
+  the check to run before any experiment that turns on a new parameter with
+  `--preflight`:
+  ```bash
+  curl -s -X POST -H 'Content-Type: application/json' \
+       -H "Authorization: $(cat ~/.patric_token)" \
+       -d '{"jsonrpc":"1.1","id":1,"method":"AppService.enumerate_apps","params":[]}' \
+       https://p3.theseed.org/services/app_service |
+    jq -r '.result[0][] | select(.id=="GenomeAnnotationGenbank") | .parameters[].id'
+  ```
+  **The token is not optional:** an unauthenticated caller gets a *successful*
+  response with an **empty app list**, not an error — so an unauthenticated check
+  is indistinguishable from "the service is unreachable" and tends to be skipped
+  silently. **The reload is per-change, not permanent:** measured again
+  2026-08-21, the cached `GenomeAnnotationGenbank` spec had **no `lowvan_*`
+  params at all** (nor `reference_genome_id`, `raw_import_only`, `skip_contigs`) —
+  i.e. it had drifted back since the 2026-07 fix. A container redeploy does not
+  refresh it.
 - **Heads-up:** several `service-scripts/p3x-*` exist only in the working tree /
   deployment and are **not in `origin/master`** (e.g. `p3x-set-site-container.pl`
   was net-new). Check `git ls-tree origin/master` before assuming a tool is
@@ -402,6 +425,81 @@ Shock. Remotes here: `origin` = `olsonanl/Workspace` (fork), `upstream` =
   `*.bak-<timestamp>` editor backups and generated files (`WorkspaceImpl.py`,
   `biop3/`, `pod2htmd.tmp`) — ignore them when scoping a commit/PR.
 
+### p3_core — RQL `terms()` vs `in()` for ID lists
+
+**The rule is `terms()` for a large value list (hundreds+), `in()` for a handful
+— but as of 2026-09-03 no deployment can be trusted with `terms()`, so
+`P3DataAPI` sends `in()` and gates the switch behind `P3_RQL_TERMS`** (see
+`P3DataAPI::id_list_op`, whose POD carries the measurements). Read the rest of
+this section as the design and the evidence for that gate, not as current
+behavior.
+
+Both operators take the same shape — `terms(genome_id,(123.456,789.012))` — but
+they compile to very different Solr queries:
+
+| | emitted | Solr side |
+|---|---|---|
+| `in(f,(a,b,c))` | `&q=` … `f:(a OR b OR c)` | boolean query, **one clause per value**, scored |
+| `terms(f,(a,b,c))` | `&fq={!terms f=f}a,b,c` | hash-set match, filter-cached, **unscored** |
+
+`lib/solrjs/rql.js:474` collects the clause and `:108` emits it. Two independent
+wins: the `{!terms}` parser uses a hash set instead of building a clause per
+value (on a few thousand values the clause tree is the dominant cost of the
+query, and it can hit `maxBooleanClauses`), and it lands in `&fq=` so it goes
+through the filter cache.
+
+The tradeoff is the flip side of that second point: an `fq` does not contribute
+to relevance scoring, so do **not** swap `in()` for `terms()` inside a clause
+whose ranking you depend on. For ID-list lookups — which is what all of these
+are — that is irrelevant.
+
+- **Two `in()` forms that `terms()` silently breaks**, both present in
+  `P3DataAPI.pm` and both left as `in()` on purpose (with comments saying so):
+  the **subquery** form `in(feature_id,FeatureGroup(/path))` /
+  `in(genome_id,GenomeGroup(/path))`, where the argument is a reference the API
+  resolves server-side rather than a value list; and **wildcards**,
+  `in(feature_type,(*rna,*RNA))` — `{!terms}` is literal-match only, so it would
+  hunt for a feature type spelled `*rna` and return nothing. Neither fails
+  loudly; both just return no rows.
+- Six sites in `P3DataAPI.pm` now call **`id_list_op()`** instead of naming an
+  operator (2026-09-03): `lookup_sequence_data` (md5 batch), the two `$id_field`
+  feature-id lookups, and the three `genome_id` list queries.
+- **Two deployment defects, either of which alone forces the `in()` default.**
+  `t/client-tests/p3-rql-terms.t` is the probe — it skips unless
+  `P3_TERMS_TEST_URL` names an endpoint, and checks all three conditions that
+  must hold before flipping.
+  1. **Production does not implement the operator.** `www.bv-brc.org/api` and
+     `p3.theseed.org/services/data_api` both answer **400**; only
+     `alpha.bv-brc.org/api` answers 200. The error is not "unknown operator" but
+     Solr's `{"msg":"undefined field object","code":400}` — the older `rql.js`
+     mangles the clause rather than rejecting it. `www.bv-brc.org/api` is
+     `P3DataAPI`'s **default url**, so an unconditional swap breaks every caller.
+  2. **Where it does work, it truncates on `genome_feature`.** On alpha,
+     `terms()` with a `limit` of **≥ 10,000** returns **HTTP 200 with a one-byte
+     body (`[`)** whenever the match is exhausted before the limit. Bisected:
+     `limit(9999)` → 250 rows, `limit(10000)` → truncated; `in()` at
+     `limit(25000)` → 250 rows; a *full* page (25,000 of many more) → fine; the
+     `feature_sequence` core → unaffected at any limit. `chunk_size` is 25,000,
+     so every paged `genome_feature` query hits it. Through this module the GET
+     path 502s and `submit_query` dies rather than silently short-reading — but
+     the POST path really does return a successful-looking truncated body, so
+     do not lean on that.
+- **The operator itself is correct** — measured against alpha, `in()` and
+  `terms()` agree row for row on `retrieve_genome_metadata`, both
+  `lookup_sequence_data` paths and `retrieve_ssu_rnas`, and the md5 lookup that
+  wedged the BLAST build runs about **twice as fast** (1.95s → 0.97s). The two
+  failing sites fail on defect 2, not on a semantic difference.
+- **This is distinct from the other ID-list mechanism in the tree**, which is
+  easy to confuse with it: `BatchJoiner` / `CrossCollectionSourceStream` also
+  build `{!terms}` filters, but do it in JS via `fetchByIds` rather than through
+  RQL. Same Solr-side construct, different entry point.
+- **Why it matters operationally:** on 2026-09-03 twelve concurrent BLAST build
+  workers calling `lookup_sequence_data` with **5,000 md5s per `in()`** (a
+  165,203-byte request body) preceded the API tier wedging — three node workers
+  CPU-pegged, `/api` returning zero bytes while the web front end still answered
+  in 113 ms, and Cloudflare handing eleven genera a bare `error code: 524`
+  inside a three-second window.
+
 ### p3_solr_pipeline (genome indexing)
 
 `service-scripts/rast2solr.pl` builds the Solr load documents (`genome.json`,
@@ -425,6 +523,73 @@ handling**, so any field not in `managed-schema` is rejected at index time.
   above (an out-of-typedef key on `genotype_annotation`, likely legacy IRD/ViPR
   data). It will fail to index against the current schema — fix at the source
   (rename to `passage` or drop the key), or add the field to `managed-schema`.
+
+### homology_service (BLAST databases)
+
+The service searches a *generation*: a dated directory of BLAST v5 databases plus
+a `db.sqlite` catalog mapping taxon ids onto them. **`REBUILDING.md` (module top
+level, added 2026-08-26) is the process of record** — build invocations, the
+sqlite catalog, verification, publishing. `ImplementationNotes.md` is the older
+design doc. Live generation is named in **two** `deploy.cfg` stanzas,
+`[homology_service]` *and* `[HomologyService]`, each setting
+`blast-db-search-path` + `blast-sqlite-db`; updating one leaves half the service
+on the old data.
+
+A generation = `by-genus-bacterial/` (~11,970 DBs) + `by-genus-viral/` (~195,
+keyed by **family** — the directory name is historical and wrong) + `ref/` (6
+curated) + `db.sqlite`. Each name exists in three types (`features.faa`,
+`features.fna`, `contigs.fna`), each with `.taxids`/`.taxlist`/`.glist` sidecars.
+**~1.8 TB total**, essentially all bacterial (703 + 641 + 415 GB).
+
+- **A rebuild must target a fresh empty dated directory.** `p3x-create-blast-db.pl:94-100`
+  skips any database that already has a non-empty `.taxids` plus blast files, and
+  `p3x-build-pathogen-blastdbs` has **no `--overwrite` passthrough** — so a rerun
+  into a populated tree cannot rebuild anything. That is how `data.2022-0916`
+  shipped 9 damaged databases: the 09-20 rerun was refused for 5,110 of them.
+  Watch `grep -rl 'already exists, skipping' $NEW/logs/ | wc -l` staying 0.
+- **Build on local disk, for contention not speed.** The I/O is large-block
+  sequential, so SSD-vs-spinning is second order; the real argument is keeping
+  1.8 TB of writes off the shared `/vol/blastdb` netapp (85% full, serving live
+  queries). Cost is a ~1.8 TB copy at publish time.
+- **Compile-time failure signature.** `p3x-create-blast-db` loads
+  `PerlIO::via::Blockwise` (needs `IO::AIO`) and `BerkeleyDB`; the driver loads
+  neither, so a missing module starts normally and kills every worker at BEGIN.
+  It surfaces as `Failure running p3x-create-blast-db …: No such file or directory 512`
+  — `$?` 512 = exit 2, because Perl's `die` exits with `$!` when nonzero and
+  `Can't locate Foo.pm in @INC` is ENOENT; the driver then prints the *parent's*
+  stale `$!`. **No per-genus log files at all** is the tell. Check with
+  `perl -c scripts/p3x-create-blast-db.pl`.
+- **The build now verifies itself** (commit `eb87cd8`, branch
+  `feature/db-sqlite-build-scripts`): the two child fasta/taxid writes in
+  `process_from_download_files` are checked (`IO::Handle::error` for the opaque
+  `print_alignment_as_fasta`, `or die` for the taxid print), and
+  `verify_record_count` compares `number-of-sequences` from the `.pjs`/`.njs`
+  sidecar against the `.taxids` line count after makeblastdb, **unlinking
+  `.taxids`** on mismatch so neither the skip guard nor the catalog loader accepts
+  the database. Child-side checks alone are not enough: `LPTScheduler::run`
+  discards the child exit status that `Proc::ParallelLoop` records in
+  `@Exit_Status`, so the parent `cat`s partial files regardless.
+- **The tolerance is 0, and 5% was empirically wrong.** Validated against the
+  known-damaged production DBs, a 5% threshold caught **none** of them (Klebsiella
+  1.57% short, Salmonella 4.96%, Staphylococcus 1,270 *extra*). Default is exact
+  equality with `abs($delta)` so a surplus fails too; the viral path passes
+  `--max-missing-fraction 0.03` because makeblastdb deterministically rejects a
+  few records there (45 viral DBs short, all ≤2.4%).
+  **Blind spot:** `Acinetobacter.features.faa` is damaged yet its counts match
+  exactly — that one needs the taxid-coverage or chimera-length detector.
+- **`--curated-directory ref` must match exactly.** The loader tests
+  `$curated{dirname($dir)}` against the path *relative to* the database dir. It
+  didn't match in `data.2022-0916`, so all 4,058 `GenomeGroup` rows are
+  `curated=0` and the `NOT g.curated` filter in `BlastDatabasesSQL::search_taxa`
+  is inert.
+- **The `ref/` invocations are only half recorded.** `ImplementationNotes.md:64`
+  has the viral one verbatim; the `bacteria-archaea` one is nowhere in the tree
+  and is reconstructed (`--taxon 2 --taxon 2157 --reference --representative`,
+  matching the shipped 6,352 genomes / 6,232 taxa). The six production build logs
+  are `data.2022-0916/logs/log.{bacteria,virus}.{aa,dna}.{features,contigs}.out`.
+- See also `scripts/db-schema.sql` + the three `p3x-create-taxonomy-*` /
+  `p3x-create-databases-lookup` steps, whose order is load-bearing (the lineage
+  builder reads `TaxonInDatabase`, created by the lookup loader).
 
 ### BV-BRC-Go-SDK
 
@@ -991,3 +1156,213 @@ Remotes: `origin` = `olsonanl/bvbrc_metacats` (fork), `upstream` = `BV-BRC/bvbrc
   `filename_whitespace_issue_675.json` + `auto_groups_formfill.json` only needed
   `output_path` repointed (their inputs were already accessible). See "App QA
   fixtures" under Testing.
+
+### bvbrc_lowvan (LowVan viral annotation)
+
+Annotates viral genomes by tBLASTn-ing curated PSSMs against input contigs. Covers
+Bunyavirales, Coronaviridae, Filoviridae, Orthomyxoviridae, Paramyxoviridae,
+Pneumoviridae. It is **not** a de novo ORF finder — it only recognizes proteins it has a
+PSSM for. `GenomeAnnotationImpl.pm:2342` (`call_features_lowvan`) invokes
+`service-scripts/p3x-annotate-lowvan.pl`, which `IPC::Run`-pipes four GTO-streaming
+stages: annotate → **splice** → **transcript-edit** → quality. (That is the real order;
+the upstream `CLAUDE.md` documents a different one — upstream issue #25.)
+
+- **Three repos, and the production one changed.** The Perl lives in a repo that is
+  git-cloned into `bvbrc_lowvan/Viral_Annotation/` at build time:
+  `jimdavis1/Viral_Annotation` (curator) → `olsonanl/jdavis_lowvan` (fork where the
+  analysis work happens) → **`CEPI-dxkb/Viral_Annotation`, which is what the Makefile
+  clones** as of `84c9640` ("Switch repo to the production repo"). Cut data bundles and
+  run validation against CEPI-dxkb, not the fork.
+- **Two working copies on this host, and the in-tree one is stale.**
+  `modules/bvbrc_lowvan/Viral_Annotation/` is at `1112ba7`; the live one is
+  `~olson/BV-BRC/jdavis_lowvan`. Design docs live only in the latter — `GO_PORT_PLAN.md`
+  (Go port, revised 2026-08-19), `UPSTREAM-ISSUES.md` (25 Perl defects, cited by number
+  elsewhere), `LOWVAN-FAILURE-ANALYSIS.md` (the 160,775-job mass failure) — i.e. **outside
+  `modules/`**, so a grep of this tree will not find them.
+- **The 34 annotation taxa are exact-string keys, never prefixes.** The same 34 names
+  index `Viral-PSSMs/<name>.pssms/` (34 dirs), the top-level keys of `Viral_PSSM.json`
+  (34), and the `Viral-Rep-Contigs/<name>[.N].dna` prefixes (78 files) — verified
+  identical 2026-08-19. The rank is not uniform: 8 families (all Bunyavirales), 25 genera,
+  and one **species**, `Orthopneumovirus_muris`, whose space is written `_`. Because
+  `Orthopneumovirus` is a strict prefix of `Orthopneumovirus_muris`, any lookup must be
+  exact-string — never prefix, glob, or substring. Deriving a taxon from a rep-contig
+  filename is `s/\..+//` (strip from the **first** dot), not a last-dot/extension split.
+  There is no `Coronaviridae`/`Paramyxoviridae`/`Filoviridae` entry (name the genus) and
+  no `Orthohantavirus` (Bunyavirales resolve only to family).
+- **The mass failure (160,775 jobs) fails three stages from its cause and names neither
+  the genome nor the reason.** When the inner `annotate_by_viral_pssm.pl` produces no
+  feature table, `annotate_by_viral_pssm-GTO.pl` still writes a GTO and **exits 0** — but
+  that GTO has no `viral_family`, which is only ever set from a column of the feature
+  table. All three downstream stages then die on their own guards, and because the stages
+  are piped one death cascades to rc=255 across all of them:
+  ```perl
+  $genome_in->{features}->[0] or die "No features in GTO\n";                  # guard 1
+  $fam or die "GTO has no viral_family field (not annotated by LowVan?)\n";   # guard 2
+  ```
+  Signature to recognize: **stage 0 rc=0, stages 1–3 rc=255**.
+- **`-vtax` / `--viral-taxon`, `-list-vtax`, `-skip-classification`** (added 2026-08-19)
+  declare the taxon instead of BLASTn-detecting it, downgrade the `-mcb` rejection to a
+  warning, and make `viral_family` fall back to the declared taxon — which is what turns a
+  zero-feature job from *failure* into *"annotated nothing"*. Validation happens before
+  any side effect (no temp dir, no `makeblastdb`) so a bad name leaves nothing on disk;
+  matching is exact first, then a case-fold, never a prefix. `-skip-classification`
+  requires `-vtax` and restricts the sweep to that taxon's 1–14 reps instead of all 78,
+  saving a flat ~11.5 s/genome at the cost of the cross-check.
+- **Guard 1 is handled in the wrapper now, not in the stages** (2026-08-20, branch
+  `feature/lowvan-gate-stages-and-flags`, pushed to the olsonanl fork; **not merged, not
+  deployed**). Rather than make each downstream stage no-op on an empty GTO,
+  `p3x-annotate-lowvan.pl` stopped running them as one pipeline: **stage 0 runs alone**
+  into a temp GTO, and stages 1–3 run **only if** stage 0 exited 0 **and** the LowVan
+  analysis event in that GTO says `success`. Otherwise the stage-0 GTO is delivered
+  unchanged and the wrapper exits 0, so `call_features_lowvan` sees a success and
+  "annotated nothing" stops being a failed job. The residual it addresses is the 4.8% of
+  GenBank inputs with zero features plus ~2.3% with no derivable taxon.
+  - **A *missing* `success` field means "cannot tell" and runs the remaining stages**
+    (with a warning); only an explicit false skips them. The field is new in
+    `annotate_by_viral_pssm-GTO.pl` and exists **only in `~/BV-BRC/jdavis_lowvan`** — not
+    in the in-tree `Viral_Annotation/` (`1112ba7`), not in `CEPI-dxkb/Viral_Annotation`.
+    Strict-skip would silently drop splice/transcript-edit/quality processing wherever the
+    deployed annotator runs.
+  - Diagnostics went to **stderr** in the same change: stdout now carries the GTO.
+- **`--min-contig-bit` and `--fallback-viral-taxon` are exposed end to end** (the wrapper
+  side of the `-vtax` work above). Chain: `p3-submit-genome-annotation`
+  `--lowvan-min-contig-bit` / `--lowvan-fallback-viral-taxon` (Perl **and** Go) →
+  `lowvan_min_contig_bit` / `lowvan_fallback_viral_taxon`, declared in **both**
+  `GenomeAnnotation.json` and `GenomeAnnotationGenbank.json` (p3_genome_annotation branch
+  `feature/lowvan-classification-params`) → `call_features_lowvan` → the wrapper.
+  `min_contig_bit` has **no default at any layer above `annotate_by_viral_pssm.pl -mcb
+  150`**, deliberately — a copy would be a third place to drift (cf. the `-min` gotcha
+  below). `ComprehensiveGenomeAnalysis.json` carries the lowvan min/max pair and did
+  **not** get these two.
+- **`submit-validation.sh`** (module top level) submits N of the 5000 rows of
+  `~/BV-BRC/jdavis_lowvan/failure-analysis/validation-set-5000.tsv` for reannotation,
+  ledgering accession → job id so a run resumes and the results join back. It **refuses to
+  submit unless the service-side spec declares the lowvan params**: the command line uses
+  `--preflight`, which is the stale-DB-cache path where undeclared params are dropped with
+  only a warning into the job's stderr — the whole run would use production defaults and
+  measure nothing while looking successful. As of 2026-08-21 that guard fires (see the
+  app_service section). Nothing has been submitted.
+- **Gotcha — the `-min` default disagrees between layers.**
+  `annotate_by_viral_pssm.pl` defaults to **300**; `p3x-annotate-lowvan.pl` passes
+  `--min-contig-length` defaulting to **1000**. 92% of the failed accessions are <1000 bp,
+  and `-min 1` alone recovers ~58% of a stratified sample. The wrapper default is the
+  direct cause of most of the failure set.
+- **Data:** 1,787 PSSMs in 34 dirs (418 MB), 78 rep contigs (1.4 MB), `Transcript-Editing/`
+  (72 MB; its 184 `.n??` BLAST-db files are stale, rebuilt at runtime, and total only
+  2.6 MB), `Splice-Variants/` (13 MB). `PSSM-Alignments/` (364 MB) is read by **no
+  program**; `Trees/` (1.3 GB) was removed from the repo in `726b4b9`. `LOWVAN_DATA_DIR`
+  overrides the data root and is baked into each wrapper by the module Makefile.
+- **BLAST+ 2.13 is not on this host's `PATH`** (`which blastn` → not found), and the
+  `-outfmt 15` JSON schema is version-specific. Anything that actually runs the pipeline
+  needs `source /vol/patric3/cli/ubuntu-cli/user-env.sh` first.
+
+### genome_annotation pipeline recipes — per-stage `condition` (and its silent-skip trap)
+
+A recipe is `workflows/<id>/workflow.wf` (+ `name.txt`, `description.txt`), read
+per `run_pipeline` call — no service restart to change one. `enumerate_recipes`
+parses **every** `workflow.wf` as JSON, so a trailing comma in one recipe breaks
+the whole listing. `workflow_dir` resolution is `GenomeAnnotationImpl.pm:447`.
+
+Each stage may carry a **`condition`**: a Perl string `reval`'d in a `Safe`
+compartment with **only `$genome`** bound, to the in-flight GTO
+(`GenomeAnnotationImpl.pm:7669`). Truthy → run the stage, falsy → skip.
+
+- **`run_pipeline` never checks `$@` after the `reval`.** A condition that *dies*
+  yields `$ok = undef`, which reads as false — so a broken condition **silently
+  skips its stage**, and the stderr line says only `Condition eval of '…' returns`.
+  This is not hypothetical: `viral+`'s original vigor4 gate was
+  `!(grep(...))[0]->{success}`, which throws when the LowVan event is **absent**
+  (`(...)[0]` is undef, deref dies) — i.e. exactly when vigor4 was most wanted, it
+  was skipped. **Always write the block form, which is total:**
+  `!grep { $_->{tool_name} eq 'LowVan Annotate' && $_->{success} } @{$genome->{analysis_events}}`.
+  Rule of thumb: conditions must **fail open** — every "can't tell" case should
+  run the stage.
+- **Guard multi-level derefs, or the condition mutates the GTO.**
+  `$_->{metadata}->{x}` **autovivifies** `metadata => {}` on every event lacking
+  the key (verified). Write `$_->{metadata} && $_->{metadata}->{x}`.
+- The `Safe` default opmask permits what these conditions need: regex match,
+  `scalar @{...}`, both EXPR and BLOCK forms of `grep`, `&&`/`||`, hash/array
+  derefs. Single quotes inside the condition need no JSON escaping.
+- `DEBUG_PIPELINE=<dir>` dumps each stage's input GTO.
+
+#### Gating on what an annotator actually did (`success` + `metadata`)
+
+The convention, established by lowvan's `annotate_by_viral_pssm-GTO.pl` and now
+followed by vigor4: an annotation stage records `success` and a `metadata` hash on
+its analysis event, and downstream stages gate on **that**, never on the presence
+of features. A feature-shaped test cannot tell peptides an annotator called in this
+run from peptides that arrived with a GenBank import.
+
+`metadata` is `mapping<string, string>`, so **stringify every value** — and note
+Perl truthiness then does the right thing on counts (`"0"` false, `"12"` true).
+`success` means *did this run produce an annotation*, not *did the process exit 0*
+(vigor can exit non-zero and still leave a parseable `.pep`; the rc goes in
+`metadata.exit_code` — shifted, `$?` is 768 for an `exit(3)`).
+`success`/`tool_version`/`metadata` are already on the `analysis_event` typedef
+(`GenomeAnnotation.spec:52-61`), so adding them needs **no `make compile-typespec`**.
+
+**`add_analysis_event` stores the caller's hashref, not a copy**
+(`p3_core/lib/GenomeTypeObject.pm:1298`) — so register the event up front (features
+need its id) and fill in `success`/`metadata` at the end; the write picks it up.
+
+**Emit per-type counts always, including zeroes.** `p3x-annotate-vigor4.pl` emits
+`CDS_called` / `mat_peptide_called` / `pseudogene_called` / `features_called` on
+every path *except* the no-reference early exit (which records
+`status => no_reference` and nothing else). A non-polyprotein reference (influenza,
+rotavirus, RSV, the Bunyavirales genus dbs) legitimately calls zero peptides, and
+an absent key cannot distinguish that from "the tool never reported".
+
+**The `vipr_mat_peptide` gate (2026-08).** `p3x-annotate-mat-peptide.pl` used to
+decide for itself whether to run; that moved into the recipes. Two PRs, **which
+must land together** — the conditions read metadata only the patched vigor4
+writes, and the patched script has dropped its own guard:
+- `viral_annotation` [PR #3](https://github.com/BV-BRC/viral_annotation/pull/3),
+  branch `feature/analysis-events` — vigor4 `success`/`metadata`; guard removed.
+- `genome_annotation` [PR #34](https://github.com/TheSEED/genome_annotation/pull/34),
+  branch `feature/analysis-events` — the recipe conditions.
+
+In `viral+` **both clauses of the condition are load-bearing**, because exactly one
+annotator ever runs: vigor4 is itself gated on lowvan *failing*, so a successful
+lowvan leaves no vigor4 metadata to read and the `LowVan Annotate && success`
+clause is the primary case; when lowvan failed, the `mat_peptide_called` clause
+reads vigor4's count. The lowvan clause does **not** become redundant if lowvan
+later reports `mat_peptide_called` — `"0"` is falsy, so a successful lowvan that
+called no peptides would fall through the first clause. `viral` has no lowvan and
+takes the first clause only.
+
+**Repo gotcha:** `genome_annotation`'s `origin` is **`TheSEED/genome_annotation`**
+(there is no `BV-BRC/genome_annotation`); the `bob` remote is the `olsonanl` fork
+over SSH, which does not work on this host. `viral_annotation` has a single
+`origin` = `BV-BRC/viral_annotation`.
+
+### GTO taxonomy / lineage fields — where the lineage actually comes from
+
+Three consumers agree on one preference order, and it is easy to write a comment that gets
+this wrong (one in the toolkit did, corrected 2026-08-19).
+
+**Order of preference** (`p3_core/lib/GenomeTypeObject.pm:1125-1145` `write_seed_dir`, and
+its Go port `BV-BRC-Go-SDK/internal/seeddir/seeddir.go:139` `taxonomyString` — these
+match): `taxonomy` as a **list** → `taxonomy` as a **string** → `ncbi_lineage`, taking
+column **`[0]`** of each row. All strip a leading `cellular…` rank.
+
+- **`ncbi_lineage` rows are `[taxon_name, taxon_id, taxon_rank]`**, so `[0]` is the name
+  and the two above are right. **`p3_code/lib/GEO.pm:2715` takes `[1]`** — i.e. builds a
+  list of taxids and calls it `lineage`. Don't copy that as a model.
+- **`rast-create-genome --from-genbank` *does* populate `taxonomy`** — a common
+  misconception, because the field lands as a **string**, so nothing ever reaches the
+  `ncbi_lineage` branch and `ncbi_lineage` is genuinely absent. The script only forwards
+  the file to the `create_genome_from_genbank` service method; the work happens in
+  `seed_gjo/lib/GenBankToGTO.pm:356-368`, which sets **`taxonomy`** (joined `"; "`) and
+  **`domain`** from the GenBank `ORGANISM` lineage block, plus `scientific_name` and
+  `ncbi_taxonomy_id`. Verified on `A-California-07-2009-H1N1.{gb,gto}`: `taxonomy =
+  "Viruses; Riboviria; …; Orthomyxoviridae; Alphainfluenzavirus; Alphainfluenzavirus
+  influenzae"`, `domain = "Virus"`.
+- Real caveats that do survive: the assignment is guarded by `if ($locus->{taxonomy})`, so
+  a GenBank record with no lineage under `ORGANISM` yields nothing (rare — 0 of 300
+  sampled files in `/home/mshukla/reannotation/genomes_gb`); both assignments are `||=`,
+  so an existing value wins; and the value is a **string despite the field name**, which
+  hand-written consumers routinely assume is a list.
+- **Consequence for LowVan:** the annotation taxon can be derived from the GTO's own
+  `taxonomy` field by exact-matching its `;`-separated tokens against the 34 valid names —
+  no need to re-read the source `.gb`. Confirmed: the influenza GTO above yields
+  `['Alphainfluenzavirus']`.
