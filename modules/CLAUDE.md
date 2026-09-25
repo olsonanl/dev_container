@@ -421,10 +421,14 @@ Shock. Remotes here: `origin` = `olsonanl/Workspace` (fork), `upstream` =
   all aggregate calls through it, never pass `{ hint => }` to `aggregate` directly.
   The forced index is `workspace_uuid_1_path_1`.
 - **Go port of the download service is in progress**, `Workspace/go/cmd/ws-download`
-  (`PORT_STATUS.md` is the ledger; phases 1-2 of 7 done). Shock objects can be
-  read straight off Shock's on-disk shard tree instead of over HTTP, gated by the
-  Go-only `shock-data-path` deploy.cfg key — an on-disk/Mongo size mismatch is a
-  hard 500, deliberately not the silent HTTP fallback `WSFileMember.pm` uses.
+  (`PORT_STATUS.md` is the ledger; phases 1-3 of 7 done). `/download`, `/view`,
+  and `/set-cookie-auth` all serve real traffic now; only `/archive` still
+  answers 501. Shock objects can be read straight off Shock's on-disk shard tree
+  instead of over HTTP, gated by the Go-only `shock-data-path` deploy.cfg key —
+  an on-disk/Mongo size mismatch is a hard 500, deliberately not the silent HTTP
+  fallback `WSFileMember.pm` uses. `/view`'s workspace-path resolution and
+  permission check were ported to Go against Mongo directly rather than via a
+  JSONRPC call to the Perl RPC service.
   See `Workspace/CLAUDE.md` for the full design and the `/view` permission gotchas.
 - **Heads-up:** many `service-scripts/p3x-*` and the modified test docs exist only
   in the working tree, not upstream. The working tree is also littered with
