@@ -522,6 +522,52 @@ are — that is irrelevant.
   in 113 ms, and Cloudflare handing eleven genera a bare `error code: 524`
   inside a three-second window.
 
+#### Retry against the data API — a 200 is not a usable answer
+
+These are the "p3_core notes on retry policy" the `p3_auth` section points at.
+The retry machinery itself (`P3ClientUA::retry_request`, `classify_response`,
+`backoff_delay`) lives in **`p3_auth`** and is documented there; what follows is
+how it behaves against *this* API specifically.
+
+- **`detect_truncated_body` is inert against the data API, on every path.** It
+  compares the body length against **`Content-Length`** and returns the response
+  untouched when there is none (`return $res unless defined($want)`) — and the
+  API serves **chunked**. Measured as LWP sees it, not just via curl's HTTP/2:
+  `/api` and `/api-internal`, schema *and* query endpoints, all answer
+  `Transfer-Encoding: chunked` with `content_length` undef. So the three call
+  sites that wrap it (`P3DataAPI:419`, `:972`, `P3WorkspaceClient:2681`) get no
+  protection from it here. The Workspace one targets **Shock**, a different
+  server that may genuinely send `Content-Length` — unverified.
+- **What actually protects the query paths is the decode retry**, not that
+  helper: `submit_query` treats an undecodable body as transient and retries it
+  (pinned by test 15 in `t/client-tests/p3-solr-retry.t`). Keep that in mind
+  before "simplifying" it away as redundant with `detect_truncated_body`.
+- **`classify_response` calls every 2xx `NO_RETRY`**, so any body-level failure
+  is invisible to the retry layer unless the caller downgrades it. The idiom for
+  doing so is to synthesize a **502 `HTTP::Response`** — what
+  `detect_truncated_body` does — and return it from `retry_request`'s **`send`**
+  hook. Do it there rather than adding an option to `P3ClientUA`: a cross-module
+  signature change recreates the skew that left `p3_core` master calling an
+  undefined `retry_request` for three weeks (see the p3_auth section).
+- **A failure that parses is permanent; one that does not is transient.** The
+  schema lookup got this wrong and it cost a GenomeAnnotation job (2026-10-05):
+  a 200 with an empty/truncated/HTML body reached the uniqueKey check unretried,
+  `decode_json` died inside a bare `eval` whose error was discarded, and the code
+  reported **`core 'taxonomy' reports no uniqueKey in its schema`** — about a core
+  whose schema has had `taxon_id` throughout. Four unrelated causes produced the
+  byte-identical message at `attempts=1`. Fixed in
+  [PR #27](https://github.com/BV-BRC/p3_core/pull/27). The split to preserve:
+  retrying a genuinely keyless core would burn the whole **300 s** budget on an
+  answer that cannot change, so only the unparseable case is made retryable.
+- **Put the evidence in the message.** A transient is gone by the time anyone
+  reads the stderr, so an error about a response body should carry content-type,
+  byte count and a short snippet — otherwise Cloudflare HTML, a truncated read
+  and a real schema change are indistinguishable in the only artifact that
+  survives. Strip JSON::XS's `at <file> line <n>`: it names our own `decode_json`
+  call and reads as if the bug were there.
+- **When adding a test here, feed it a malformed body.** Every schema test
+  predating the fix used a well-formed one, which is exactly how this shipped.
+
 ### p3_solr_pipeline (genome indexing)
 
 `service-scripts/rast2solr.pl` builds the Solr load documents (`genome.json`,
