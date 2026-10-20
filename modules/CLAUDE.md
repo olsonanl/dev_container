@@ -1231,12 +1231,16 @@ gh run list --repo BV-BRC/BV-BRC-Go-SDK --workflow release.yml --limit 3
   (2026-09-02), v2.0.15 (2026-08-19, `0e377f3`, the `rast-*` port — first
   release with all 138 tools), v2.0.14 (2026-08-18, `--version`/`--debug-http`)
   and v2.0.13 (2026-08-13, the last one cut from the fork).
-  **v2.0.17 is incomplete in two ways worth knowing:** it has **13 assets, not
-  16** (the three `.sif`s — see the Apptainer breakage below), and at the time
-  of writing its conda upload had not finished, so
-  `api.anaconda.org/package/bv-brc/bvbrc-cli` still reported 2.0.16. Check
-  anaconda before telling anyone conda has it.
+  **v2.0.17 ships 13 assets, not 16** — the three `.sif`s are missing (see the
+  Apptainer breakage below). Everything else is complete: release promoted out
+  of prerelease, and conda published 2.0.17 for all four platforms.
   **Check `gh release list` rather than this line** — it has been stale twice.
+- **The run's overall conclusion is `failure` even when the release is fine.**
+  v2.0.17 finished `conclusion: failure` purely because the three Apptainer
+  jobs failed; the other five job instances succeeded and the release,
+  archives, installers, `.deb`/`.rpm` and conda package are all good. So
+  **`gh run list` showing a red ✗ is not evidence the release is broken** —
+  check which jobs failed before concluding anything.
 - **Verify `main` actually has the work before tagging — "merged" can be a
   lie with stacked PRs.** A stack of PRs each based on the previous branch
   relies on GitHub retargeting each one to `main` as its base merges. If the
@@ -1249,7 +1253,14 @@ gh run list --repo BV-BRC/BV-BRC-Go-SDK --workflow release.yml --limit 3
   equivalent count of what the release is supposed to contain, **before** the
   tag — a tag that ships the wrong tree is undone only by burning a version
   number (the conda upload is `--force`).
-- **A full run takes ~34 min** and all 8 jobs must go green. v2.0.15 verified
+- **A full run takes ~35–50 min** and all 8 job instances must go green.
+  Measured on v2.0.17 (2026-10-20): **49 min**, and the critical path is
+  `conda-publish`, not the Go builds — it builds the four platform packages
+  **serially** at ~7 min each (linux-64, linux-aarch64, osx-64, osx-arm64 →
+  28 min), and only then uploads. So a conda job sitting `in_progress` 25
+  minutes in is normal, not hung; check which *step* it is on
+  (`gh api …/actions/jobs/<id> --jq '.steps[]'`) before assuming it is stuck.
+  v2.0.15 verified
   end-to-end afterwards: release `isDraft=false isPrerelease=false`, 16 assets,
   tarball/`.deb`/conda package each carrying **37 rast + 101 p3 = 138**, and a
   shipped binary reporting `rast-export-SEED 2.0.15` /
