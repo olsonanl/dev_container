@@ -67,6 +67,7 @@ Each module follows this pattern:
 | `typecomp` | RPC type compiler for generating clients from .spec files |
 | `BV-BRC-Go-SDK` | Go SDK and CLI tools (Go reimplementation of p3_cli) |
 | `genome_annotation` | Genome annotation service (port 7050) |
+| `sra_cache_service` | SRA precaching + toolkit access (JSONRPC, Go; ports 7141/7142) |
 
 ### JSONRPC Services
 
@@ -112,12 +113,28 @@ Set `KB_INTERACTIVE=1` when running scripts interactively.
 - `P3_USER_AGENT` - Override the client User-Agent (see HTTP diagnostics below)
 - `P3_DEBUG_HTTP` - Dump headers of failed HTTP exchanges (Perl **and** Go)
 
-## HTTP diagnostics / Cloudflare (2026-08)
+## HTTP diagnostics / Cloudflare (2026-08, revised 2026-10-19)
 
 The BV-BRC web sites sit behind Cloudflare, which rejects disallowed library
 user-agents with **error 1010** before the request ever reaches the origin.
 Clients used to report nothing but a status code, so an edge rejection was
 indistinguishable from a bad password.
+
+> **The target is an allowlist, and that inverts the whole problem.** The
+> agreement with the Cloudflare administrator is that BV-BRC traffic is
+> identified by a **`bvbrc-*`** user agent and a rule *admits that family*.
+> Everything below that reads "the 1010 rule is a block-list, not an allowlist"
+> describes the **current** configuration, not the target one.
+>
+> The consequence is easy to get backwards: under an allowlist **`BV-BRC P3
+> Client` fails** — there is no `bvbrc` substring in it — so the string that has
+> been our safe agent for two years becomes the unsafe one the day the rule
+> changes. Every identity must start `bvbrc-`.
+>
+> **Measuring the live edge cannot show you this.** As of 2026-10-19 an
+> arbitrary string (`xyzzy`) still gets **200** from `www.patricbrc.org/api`;
+> only known library agents are refused. A measurement-led review will
+> therefore conclude the work is cosmetic. It is not — it is runway.
 
 - **`P3_DEBUG_HTTP=1` is the cross-language switch.** Set it and any failing
   HTTP exchange in the Perl clients *or* the Go SDK prints a redacted dump of
@@ -131,13 +148,30 @@ indistinguishable from a bad password.
   `login_rast` puts the password in a Basic `Authorization` header. Both test
   suites assert the password, the base64 Basic credential and a cookie value
   are all absent from a dump.
-- **The Perl UA default moved off `libwww-perl`.** Only `P3DataAPI.pm` set an
-  allowlisted agent; every other LWP client (`P3AuthLogin`, `P3TokenValidator`,
-  `P3UserAPI`, `P3Utils`, `P3WorkspaceClient`, `RASTlib`) sent LWP's default —
-  i.e. exactly the string the 1010 rule bans. All now build their agent with
-  **`P3ClientUA::new_ua()`**, the single definition of the string.
-- **UA precedence (revised 2026-08-18):** `$ENV{P3_USER_AGENT}` → **product
-  identity** → `$FIG_Config::p3_data_api_user_agent` → `"BV-BRC P3 Client"`.
+- **The Perl UA default moved off `libwww-perl` — but only partly, and only on
+  some masters.** An earlier version of this file said "all now build their
+  agent with `P3ClientUA::new_ua()`". **That was never true.** Checked per
+  module on each upstream master, 2026-10-19:
+
+  | module | state on master |
+  |---|---|
+  | `p3_auth` `P3AuthLogin`, `P3TokenValidator` | fixed |
+  | `p3_core` `P3Utils` | fixed |
+  | `p3_core` `P3DataAPI` | fixed, bar one bare UA at `:2274` → `http://spruce:6100/lookup`, an internal non-CF host (one of the unused experiment endpoints) |
+  | `p3_cli` `P3WorkspaceClient`, `RASTlib` | **3 bare `LWP::UserAgent->new()` each, no `P3ClientUA` at all** |
+
+  The p3_cli fix (`de04c9a`) was written in August and sat unmerged on a local
+  branch, so the Perl CLI has been sending `libwww-perl` the whole time. The
+  full sweep found **23 leak sites across four repositories**; see the PR list
+  below.
+- **UA precedence (revised 2026-08-18) — this is PR#9's order, not master's.**
+  On the branch: `$ENV{P3_USER_AGENT}` → **product identity** →
+  `$FIG_Config::p3_data_api_user_agent` → `"bvbrc-client-perl"`. **On
+  `bvbrc/master` today** `user_agent_string` is still
+  `$configured || $ENV{P3_USER_AGENT} || $default_user_agent`, with no product
+  step and `$default_user_agent = "BV-BRC P3 Client"` (`P3ClientUA.pm:20`) —
+  so until p3_auth#9 merges, the fallback is the *old* string and
+  `P3_USER_AGENT` is still outranked by FIG_Config.
   The original order had FIG_Config first, which made the other two dead code:
   `p3_data_api_user_agent` is set (to the stock string) in **every** deployment
   by `p3_seedtk/FIG_Config.pm.tt:50`, so `P3_USER_AGENT=…` appeared to do
@@ -147,9 +181,33 @@ indistinguishable from a bad password.
   `P3ClientUA::set_product($name, $version)` in-process, or
   **`P3_CLIENT_PRODUCT`** in the environment (whole string); an explicit
   `set_product` beats an inherited env value. Rendered `name/version`, or a bare
-  `name` when no version is supplied. **Two products are declared today:
-  `bvbrc-cli-perl` (p3_cli, 137 scripts) and `bvbrc-auth-perl` (p3_auth —
-  `p3-login`, `p3-logout`, `p3-whoami`).**
+  `name` when no version is supplied.
+  - **None of this was merged until now, despite what this file used to say.**
+    It claimed "two products are declared today". In fact `set_product` existed
+    only as a single unpushed local commit on `p3_auth`
+    `feature/client-product-identity`, while `p3_cli`'s `Makefile` exported
+    `P3_CLIENT_PRODUCT` for a reader that was not on any master — a producer
+    with no consumer. The resolved agent was always the fallback.
+  - **Four products, all in review as of 2026-10-19:** `bvbrc-cli-perl`
+    (p3_cli), `bvbrc-auth-perl` (p3_auth), `bvbrc-app-perl` (app_service),
+    `bvbrc-sas-perl/1.039` (seed_core `ClientThing`), over the generic fallback
+    `bvbrc-client-perl`. Go side already complies: `bvbrc-cli-go`,
+    `bvbrc-auth-go`, `bvbrc-go-sdk`.
+  - **`bvbrc-app-perl` is declared in `AppScript.pm`, not a Makefile** — the
+    one place the p3_cli wrapper trick is *not* needed, because **all 50
+    `App-*.pl` across 36 repositories load `AppScript`** (re-counted
+    2026-10-20; it was 47/33 when this was written, and the misses are still
+    zero). Note two of them are not where you would look: `sra_import`'s is at
+    the repo top level rather than in `service-scripts/`, and `codon_trees`
+    contains two nested repos with their own. One line covers them
+    all, and an app script run directly still has an identity. The
+    `set_product`-beats-inherited-env rule is load-bearing there: an app
+    launched by a `p3-*` tool inherits `bvbrc-cli-perl` and would otherwise
+    claim to be the CLI.
+  - **Guard the call with `->can`.** It runs at module load in all 47 app
+    scripts, and `app_service`/`p3_auth` deploy independently, so an undefined
+    `set_product` would not degrade the agent — it would kill every app at
+    startup, exactly as `p3_core` did for three weeks with `retry_request`.
   - **The seam is the generated wrapper, not the source.** Each module's
     `Makefile` sets `P3_CLIENT_PRODUCT` and puts it in `WRAP_VARIABLES`, so
     `tools/wrap_perl.sh` bakes an `export` into every `bin/p3-*`. That is the
@@ -172,8 +230,19 @@ indistinguishable from a bad password.
   - Verified live 2026-08-18: `bvbrc-cli-perl` and `bvbrc-cli-perl/1.2.3` both
     get **200** from `www.patricbrc.org/api` (`libwww-perl` gets 403), and
     `bvbrc-auth-perl` gets a plain **401** from `user.patricbrc.org/authenticate`
-    (i.e. reaches the origin). So the 1010 rule is a block-list of known library
-    agents, not an allowlist of one string.
+    (i.e. reaches the origin). So the 1010 rule **as currently configured** is a
+    block-list of known library agents, not an allowlist — see the allowlist
+    note at the top of this section for why that is the transitional state and
+    not the thing to design against.
+  - **Where the two non-obvious strings live, if you are hunting them:** the
+    fallback is `p3_auth/lib/P3ClientUA.pm:20` `$default_user_agent`, and the
+    deployment-wide default is `p3_seedtk/Makefile:22` `DATA_API_USER_AGENT` →
+    `$FIG_Config::p3_data_api_user_agent` (`FIG_Config.pm.tt:50`). **Both are
+    still literally `"BV-BRC P3 Client"` on master** — neither has moved to a
+    `bvbrc-*` name yet; that is what p3_auth#9 and p3_seedtk#1 do, which is why
+    they must land together. **The second outranks the first and is set in
+    every deployment**, so fixing only `P3ClientUA` changes nothing in
+    production while every test still passes.
 - **`P3ClientUA` lives in `p3_auth`, not `p3_core`**, purely for dependency
   ordering: `p3_core` depends on `p3_auth` (`P3AuthToken`), never the reverse,
   so `p3_auth` is the only module all three (`p3_auth`/`p3_core`/`p3_cli`) can
@@ -198,9 +267,48 @@ indistinguishable from a bad password.
   rule is on the **patricbrc www zone, not the auth endpoint**. The login-path
   UA fix is prophylactic; the diagnostics are what will identify an intermittent
   rejection. Narrower still: **`www.bv-brc.org/api` serves `libwww-perl` a 200**
-  (measured 2026-08-18) — and that is `P3DataAPI`'s *default* url, so a plain
-  `p3-*` query never reproduces a block. Reproduce by passing the patricbrc url
-  explicitly: `P3DataAPI->new("https://www.patricbrc.org/api")`.
+  (measured 2026-08-18, still true 2026-10-19) — and that is `P3DataAPI`'s
+  *default* url, so a plain `p3-*` query never reproduces a block. Reproduce by
+  passing the patricbrc url explicitly:
+  `P3DataAPI->new("https://www.patricbrc.org/api")`.
+- **The rule has widened since August, and reaches the nmpdr zones too**
+  (measured 2026-10-19). `libwww-perl` now gets **403 `error code: 1010`** from
+  `www.patricbrc.org/api`, `patricbrc.org/api`, **`www.bv-brc.org/` (root — did
+  not block in August)**, **`alpha.bv-brc.org/api` (new)**, and both
+  **`servers.nmpdr.org`** and **`rast.nmpdr.org`**. The nmpdr pair matters
+  because it means the legacy SEED server family (`SAPserver`, `RASTserver`,
+  `ANNOserver`, `ATserver`, `ALITREserver`, all via `seed_core/ClientThing.pm`)
+  is subject to the same policy — hence `bvbrc-sas-perl/1.039`.
+  **`p3.theseed.org` is not behind Cloudflare at all** (direct A record,
+  `Server: nginx`, no `cf-ray`), so Workspace/AppService JSONRPC traffic never
+  meets this rule.
+- **The nine PRs doing the `bvbrc-*` migration** (all open, 2026-10-19;
+  `p3_auth` and `p3_seedtk` must land together and first, the rest are
+  order-independent):
+  BV-BRC/p3_auth#9 (`set_product`, precedence, fallback) ·
+  BV-BRC/p3_seedtk#1 (deployment default) · BV-BRC/p3_cli#24 ·
+  BV-BRC/app_service#40 · BV-BRC/Workspace#105 · TheSEED/typecomp#5 ·
+  TheSEED/seed_core#2 · BV-BRC/p3_minhash#13 · TheSEED/genome_annotation#35.
+  Known gap left out on purpose: `sra_cache_service`'s tracked
+  `SRACacheClient.pm` — pre-deployment, with three unmerged branches in flight,
+  so it belongs to that module's Phase 10.
+- **Generated JSONRPC clients were a second, separate source of the leak.**
+  All three typecomp templates emitted a non-conforming agent: `p3_client_stub.tt`
+  built a bare UA *and* overwrote the agent with `"<Package> UserAgent"`,
+  `simple_client_stub.tt` built a bare UA and set nothing, and `client_stub.tt`
+  set no agent at all (inheriting `JSON::RPC::Legacy::Client`'s). Fixing the
+  template only reaches the **untracked** generated clients, which are rebuilt
+  at build time; **three are tracked** (`Workspace`, `genome_annotation`,
+  `p3_minhash`) and needed their own change.
+  - Workspace regenerated cleanly — the diff was exactly the template change.
+    The other two **have drifted from their own `.spec`**, so regenerating
+    dragged in a large unrelated catch-up diff plus `Impl`/`Service` rewrites;
+    there the four lines were applied by hand instead. That is the one case
+    where editing a generated client is right: the template now produces the
+    same thing, so a later regeneration reproduces rather than reverts it.
+  - **`p3_cli/lib/P3WorkspaceClient.pm` is vendored, not generated** — p3_cli
+    has no `.spec` and no `compile_typespec` target. The template fix does not
+    reach it; it must be patched in place.
 - **Known wart (not fixed):** `P3DataAPI`'s query loop retries a 1010 fifteen
   times with growing sleeps (~135 s) even though Cloudflare marks it
   `"retryable":false`. `solr_query_raw` dies immediately and is the fast way to
@@ -379,6 +487,11 @@ the `job_result` (`write_results`:785) — it never assigns or checks types.
   not — so any spec-scanning tool needs a pre-clean pass. Known offenders
   (2026-08): trailing commas in `TaxonomicClassification.json` and
   `SARS2Wastewater.json`, `#` comment lines in `ComprehensiveSARS2Analysis.json`.
+- **A `parameters` entry need not be a parameter.** `ComprehensiveGenomeAnalysis.json`
+  uses `{"comment": "Start of assembly parameters"}` pseudo-entries (4 of them) to
+  section the list, so a scanner that does `p["id"]` over `parameters` dies on a
+  `KeyError`/nil rather than on anything malformed. Skip entries with no `id`. This is
+  separate from the invalid-JSON problem above — the file parses fine.
 
 ### p3_auth (authentication + shared HTTP client)
 
@@ -395,6 +508,32 @@ the reverse. That is why the shared LWP factory / Cloudflare diagnostics module
   `cd Bio-KBase-Auth` — a directory that does not exist in this tree. Run the
   client tests directly (`perl client-tests/<file>.t` after sourcing
   `user-env.sh`) or `make test-client`.
+- **`P3ClientUA` also carries the HTTP retry framework** as of PR
+  https://github.com/BV-BRC/p3_auth/pull/8 (branch `feature/http-client-retry`,
+  merged 2026-09-21): `retry_request`, `classify_response`,
+  `detect_truncated_body`, `backoff_delay`, `retry_after_seconds` and friends —
+  19 subs where master had 8. Tests are `client-tests/p3-client-retry.t`
+  (117, offline). Consumed by `P3DataAPI` — see the `p3_core` notes on the two
+  query entry points and their retry policies.
+- **Cross-module merge order is load-bearing, and getting it wrong breaks
+  master for everyone.** `p3_core` merged its retry PRs (#25 2026-09-02, #26
+  2026-09-03), which add six `P3ClientUA::retry_request` call sites, while the
+  `p3_auth` branch *defining* that sub sat pushed-but-unmerged from 2026-08-31.
+  For three weeks `p3_core` master + `p3_auth` master died on **every** data API
+  query:
+
+  ```
+  Undefined subroutine &P3ClientUA::retry_request called at .../P3DataAPI.pm line 635
+  ```
+
+  It surfaces in `_unique_key_for_core` — the schema lookup cursor paging does on
+  the first query of each core — and cursor paging is on by default, with no
+  env-var escape because `_solr_post` routes through `retry_request` too. Since
+  `p3_core` depends on `p3_auth` and never the reverse, **the dependency's PR
+  must merge first**. A skew like this shows up as a missing sub, not a version
+  mismatch, so check `grep -c '^sub ' p3_auth/lib/P3ClientUA.pm` (8 = pre-PR#8,
+  19 = current) before blaming the caller. Same family of trap as the stacked-PR
+  gotcha under BV-BRC-Go-SDK.
 
 ### Workspace (MongoDB service)
 
@@ -598,7 +737,12 @@ The service searches a *generation*: a dated directory of BLAST v5 databases plu
 a `db.sqlite` catalog mapping taxon ids onto them. **`REBUILDING.md` (module top
 level, added 2026-08-26) is the process of record** — build invocations, the
 sqlite catalog, verification, publishing. `ImplementationNotes.md` is the older
-design doc. Live generation is named in **two** `deploy.cfg` stanzas,
+design doc. **`DIAMOND-NOTES.md`** (2026-09-11) evaluates DIAMOND as a second
+engine for the protein path — `--taxonlist` is a real analogue of `-taxids`, but
+DIAMOND covers only 2 of the 8 combinations in `%search_type_map` and no
+nucleotide database at all, and the installed 2.0.9 lacks the `--no-parse-seqids`
+(v2.1.7+) our `gnl|fig|...` accessions require. Consider before the next rebuild;
+nothing is implemented. Live generation is named in **two** `deploy.cfg` stanzas,
 `[homology_service]` *and* `[HomologyService]`, each setting
 `blast-db-search-path` + `blast-sqlite-db`; updating one leaves half the service
 on the old data.
@@ -645,11 +789,27 @@ curated) + `db.sqlite`. Each name exists in three types (`features.faa`,
   few records there (45 viral DBs short, all ≤2.4%).
   **Blind spot:** `Acinetobacter.features.faa` is damaged yet its counts match
   exactly — that one needs the taxid-coverage or chimera-length detector.
-- **`--curated-directory ref` must match exactly.** The loader tests
-  `$curated{dirname($dir)}` against the path *relative to* the database dir. It
-  didn't match in `data.2022-0916`, so all 4,058 `GenomeGroup` rows are
-  `curated=0` and the `NOT g.curated` filter in `BlastDatabasesSQL::search_taxa`
-  is inert.
+- **`--curated-directory` is a no-op: the loader never writes the flag.**
+  (Corrects an earlier note here that blamed path matching.)
+  **Status 2026-10-20: the fix below is written but only in the working tree,
+  uncommitted** — `p3x-create-databases-lookup.pl` has an 18-line local diff
+  adding the `UPDATE` at :123. The line numbers in this bullet are **HEAD's**
+  (`7c50d4f`); in the dirty tree they are 112/113/122. Nothing is committed or
+  pushed, so a fresh clone still has the bug.
+  `p3x-create-databases-lookup.pl:101-102` computes
+  `my $curated = $curated{dirname($dir)} ? 1 : 0` and **prints** it; the INSERT on
+  the next line is `INSERT OR IGNORE INTO GenomeGroup (name) VALUES (?)` — no
+  `curated` column, so the schema default `FALSE` always wins. That is why all
+  4,058 `GenomeGroup` rows in `data.2022-0916` are `curated=0`, including
+  `bacteria-archaea`, and why the `NOT g.curated` filter in
+  `BlastDatabasesSQL::search_taxa:109` is inert. `BlastDatabasesSQL::databases()`
+  (`SELECT name FROM GenomeGroup WHERE curated`) consequently returns nothing —
+  it has zero callers, so nothing noticed. Fix is an explicit
+  `UPDATE GenomeGroup SET curated = ? WHERE name = ?` after the insert (must be a
+  separate statement: `INSERT OR IGNORE` is what makes the walk idempotent across
+  a group's three databases, and the second and third rows would otherwise skip
+  the flag). Whether the path matching *also* works is untested — it was never
+  reached.
 - **The `ref/` invocations are only half recorded.** `ImplementationNotes.md:64`
   has the viral one verbatim; the `bacteria-archaea` one is nowhere in the tree
   and is reconstructed (`--taxon 2 --taxon 2157 --reference --representative`,
@@ -658,6 +818,211 @@ curated) + `db.sqlite`. Each name exists in three types (`features.faa`,
 - See also `scripts/db-schema.sql` + the three `p3x-create-taxonomy-*` /
   `p3x-create-databases-lookup` steps, whose order is load-bearing (the lineage
   builder reads `TaxonInDatabase`, created by the lookup loader).
+
+#### The plasmid databases (built 2026-09-04; not yet in any catalog)
+
+Three standalone BLAST databases of BV-BRC's plasmid contigs and the features on
+them — `/blast-build/plasmid-2026-0904/`, 23 GB: 69,373 contigs / 7,609,103
+proteins / 7,723,972 genes. Builder `scripts/p3x-create-plasmid-blast-db.pl`,
+documented in **`PLASMID-DB.md`** (selection, cache traps, verification).
+**`PLAN-plasmid-service-integration.md`** (written 2026-09-04, *planned, not
+implemented*) is how they get into the service. Note it and `DIAMOND-NOTES.md`
+are **untracked** — they exist only in this working tree, so a fresh clone has
+neither (`PLASMID-DB.md` is committed; `REBUILDING.md` has uncommitted edits).
+
+- **Separate script on purpose.** `p3x-create-blast-db.pl`'s front end is a
+  genome-level Solr query with taxon/quality/reference filters; plasmid selection
+  is **contig-level** (`sequence_type:plasmid AND public:true`, length
+  `[1000, 2000000]`) and orthogonal to all of it. Patterns copied, file untouched.
+- **`annotation=PATRIC` + `feature_type=CDS` is not optional** for any feature
+  count drawn from `genome_feature`: `accession:CP093325` returns 35,246 features
+  but only 12,226 PATRIC ones. Omitting it roughly **triples** the count with
+  RefSeq duplicate calls of the same genes. Worth remembering whenever a
+  BLAST-database sequence total is compared against a website figure.
+- **`sequence_id` is the join key, not `accession`** — 90,705 plasmid rows carry
+  only 83,819 distinct accessions (one appears 14 times), and an accession spans
+  multiple genomes *and* both annotation sources.
+- **Three obstacles before they can be catalogued**, all confirmed:
+  1. **Two-part filenames.** The build emitted `plasmids.{fna,faa,ffn}`, but the
+     loader parses `<tag>.<ftype>.<dbtype>.taxids` with
+     `/^(.*)\.([^.]+)\.([^.]+)$/` — a two-part name leaves all three captures
+     `undef` and the run dies on NOT NULL. The convention is three-part, and the
+     **gene** database is spelled **`.features.fna`, not `.ffn`** (the loader
+     remaps `features`+`fna` → dbtype `ffn`).
+  2. **The `curated` bug above.** It matters more here than for `ref/`: an
+     unflagged `plasmids` group covering 27,769 genomes' taxa is silently pulled
+     into every ordinary `taxon_list` search by `search_taxa`, duplicating content
+     the genus databases already hold.
+  3. **Contig deflines don't parse.** `HomologySearch::decode_title` demands
+     `\s{3}` before `[` and no padding inside; contigs are written
+     `… complete sequence. [ Name | 2994555.3 ]` (one space, padded) and match
+     nothing, so an fna hit carries no genome name or id. Pre-existing — it
+     affects every genus contig hit in production too. The safe fix is a **third**
+     alternative requiring a literal `| <genome-id>` inside the brackets, which is
+     what keeps it from misfiring on a product name ending in `[Escherichia coli]`.
+- **A second database directory is not possible.** `Config.pm.tt` interpolates a
+  single scalar into a one-element list
+  (`blast_db_search_path => ['[% blast_db_search_path %]']`), so the plasmid tree
+  must be moved *inside* the generation — and as a **real directory, not a
+  symlink**, because `p3x-create-databases-lookup` uses `File::Find` without
+  `follow`. (`Config.pm` is generated by `make build-libs`; never hand-edit it.)
+- **Two independent "precomputed database" surfaces**, easy to confuse. The
+  JSONRPC one (`Util.pm:680` `enumerate_databases`, a directory glob) is **dead** —
+  its `blast-db-databases` key is commented out in both `deploy.cfg` stanzas. The
+  live one is the app path `db_source=precomputed_database` +
+  `db_precomputed_database=<name>` → `BlastDatabasesSQL::find_precomputed_database`
+  (which, note, does **not** filter on `curated`). Two names use it today:
+  `bacteria-archaea`, `viral-reference`.
+- **There is no discovery surface.** `databases()` has zero callers and the
+  JSONRPC path is unconfigured; the two live names reach users only because the
+  web UI hardcodes them. A third name is API-reachable only until the UI adds it.
+
+### p3_minhash (Similar Genome Finder)
+
+JSONRPC service on port 7138 (from `Makefile:8 SERVICE_PORT`, **not** `deploy.cfg`,
+which has no port at all); `lib/Bio/P3/Minhash/MinhashImpl.pm` shells out to the
+wrapped `minhash-search`, which shells out to `mash dist`. Build scripts in
+`scripts/`: `minhash-build-sketches.pl` (bacterial),
+`minhash-build-viral-sketches.pl`, and the two `minhash-create-combined-*.pl`
+paste stages.
+
+> **Everything below describes branch `feature/api-driven-sketch-build`
+> (`2e24c58`), which is pushed but *not merged to master* — and is not what is
+> checked out.** The working tree sits on `feature/sra-distance-endpoint`
+> (`36b5eb0`, branched off master), where **none** of it exists: that builder
+> has no `mash sketch -I`, still `readdir`s the downloads tree, has none of the
+> `--fetch-dir`/`--genomes-from`/`--missing-list` options, neither combined
+> script has `paste_files()`, and `minhash-search.pl` still has the single
+> `m,genomes/((\d+)\.(\d+)),` that drops unparseable ids silently. So a `grep`
+> of the checked-out files will contradict every "it now …" below. Check out
+> the branch, or read it with `git show feature/api-driven-sketch-build:<path>`.
+> Line numbers cited here are master's unless stated.
+
+- **Production data lives on `lime` at `/minhash-data`, not where `deploy.cfg`
+  says.** The checked-in `deploy.cfg` still points at `/scratch/olson/sketches`
+  and a `patric-data-2022-0907.build` image; the real layout is a **flat**
+  `sketches/<gid>.msh` for bacteria plus `sketches/<Family>/<gid>.msh` for
+  viruses, dated `combined.<date>/` directories, and a `combined` symlink the
+  service reads through (so publishing a generation is a symlink flip). The
+  build host runs no Minhash service — that is elsewhere.
+
+#### Sketch identity — the silent-drop trap
+
+`mash` records **the path of the fasta it sketched** as the sketch's id. It
+survives `mash paste` and is column 0 of `mash dist`, and `minhash-search.pl`
+used to recover the genome id from it with `m,genomes/((\d+)\.(\d+)),`. A sketch
+built anywhere without a literal `genomes/` component therefore yielded `undef`
+and **the hit was dropped with no diagnostic**. That is why the viral builder
+sketches out of a scratch directory deliberately named `/dev/shm/tmp.$$.genomes/`.
+
+- `minhash-build-sketches.pl` now stamps the id with **`mash sketch -I <gid>`**,
+  so a sketch is self-describing wherever its fasta lived. `minhash-search.pl`
+  resolves bare id → legacy path form → anchored basename, and **warns** on an
+  id it cannot parse instead of dropping it.
+- **Deployment order is load-bearing:** ship the updated `minhash-search` before
+  publishing sketches built by the current builder. The 2026-09 `all.msh` is
+  **34% bare-id** (355,926 of 1,035,624 — the rest are pre-existing sketches the
+  builder correctly left alone), and an old search loses every one of them
+  silently.
+
+#### The bacterial builder is API-driven
+
+It used to `readdir` the downloads tree, so a genome with no download file was
+never seen and could not be sketched — or reported. Coverage there is very
+uneven (sampled 2026-09: 182/200 missing in one genome-id band, 0/200 in others,
+and all 300 most-recently-loaded genomes absent). It now enumerates from the data
+API, probes the tree per genome, and batch-fetches the misses — the same shape as
+`homology_service/scripts/p3x-create-blast-db.pl`, whose
+`prefetch_missing_genomes()` the fetch code is adapted from. Note
+`P3DataAPI::retrieve_contigs_in_genomes` (what the viral builder uses) issues one
+query **per genome**, so passing it a list batches nothing.
+
+- Options worth knowing: `--fetch-dir` (persistent contig cache, written
+  temp-then-rename; a genome returning no contigs leaves no file so it is retried
+  next run), `--genomes-from` (feed a `--missing-list` back in; the restriction is
+  pushed into the query rather than filtering a million rows), `--limit` +
+  `--dry-run` for smoke tests, `--stale-list`, `--missing-list`.
+- **The genome set is defined twice and must agree.** The builder spells it as
+  raw Solr `fq` params and `minhash-create-combined-sketches.pl` spells it in RQL,
+  because they use different P3DataAPI entry points: public Bacteria+Archaea,
+  `genome_quality:Good`, `genome_length:*`, and `ne(genome_status,Deprecated)`
+  (= `fq => -genome_status:Deprecated`). **1,035,704** as of 2026-09; the two
+  spellings were verified to return identical sets, zero symmetric difference.
+  Before they were aligned the combiner enumerated every public genome and
+  reported a permanent ~330k shortfall no amount of building could close.
+  There is deliberately **no shared module** holding the filter list: the
+  Makefile's `deploy-client` target deploys scripts without libs.
+- 2026-09 result: 1,035,624 sketched. The 80-genome shortfall is genomes with
+  **zero `genome_sequence` rows in the API** — there is nothing to sketch, and
+  the builder's `missing-list` and the combiner's `--missing-data` agree exactly.
+
+#### `mash paste` and `vm.max_map_count`
+
+`mash paste` mmaps **one region per input sketch**, so it fails outright past
+`vm.max_map_count` (1,048,576 on lime):
+
+```
+Error: could not memory-map file .../11320.230343.msh of size 8488
+```
+
+The message misleads twice: the limit is a **count of mappings, not a size**, and
+the file it names is small and blameless — just the one that ran the process out
+of them. Measured: 1,000,000 inputs paste fine, 1,100,000 fail.
+
+- Raising the sysctl (the old advice, still in that script's header comment) no
+  longer scales. Both combined scripts now chunk via **`paste_files()`**, default
+  half of `/proc/sys/vm/max_map_count`, override with `MINHASH_PASTE_CHUNK`. A
+  two-stage paste is exactly equivalent — verified row for row including ids.
+- **Read family counts post-filter.** The viral script drops private and
+  `genome_status=Partial` genomes, which takes Retroviridae from 1,240,397 raw to
+  99,298. Only Orthomyxoviridae (1,223,270 post-filter) actually exceeded the
+  limit. The bacterial `all` paste is unfiltered and cleared it by just 12,952.
+
+#### The flat sketch directory is fine — don't shard it
+
+`sketches/` holds ~1M files in **one** directory and that is not worth changing.
+Benchmarked on ext4 with `dir_index` (2026-09, 1M × 8 KB files, warm cache),
+flat vs 1-level (1024 dirs) vs 2-level (4096 dirs):
+
+| operation | flat | 1-level | 2-level |
+|---|---|---|---|
+| create 1M, single-threaded | 40.8 s | 40.8 s | 39.6 s |
+| random `stat` | 395k/s | 380k/s | 360k/s |
+| random `open`+read | 83.2k/s | 79.3k/s | 77.9k/s |
+| recursive `readdir` | 0.313 s | 0.325 s | 0.379 s |
+
+Flat wins or ties everywhere — htree lookup in a 1M-entry directory is
+effectively free, and sharding only adds path components to resolve. The
+folklore about hashed subdirectories is from ext2/ext3-without-htree and UFS,
+where lookup was a linear scan.
+
+**The one exception, and why it still doesn't matter here:** ext4 takes the
+directory inode lock on create, so *parallel* creation does benefit — hugely.
+At 32 workers, flat manages 42,266 files/s (worse than its own 47,102 at 8
+workers, i.e. lock-saturated) against 225,070 for 2-level, a **5.3×** win. But
+sketching one genome costs ~0.10 s of mash CPU, so for ~200k genomes that 5.3×
+saves about **four seconds** against a job measured in hours. Sharding would
+mean changing `lib/Bio/P3/Minhash/MinhashImpl.pm:375` (master's numbering), both combine scripts and the builder, plus
+relocating ~890k files — real risk to the live service for nothing. If the
+build ever feels slow, `--parallel` and `--fetch-batch-size` are the levers, not
+the layout.
+
+#### Viral combine quirks
+
+- **20 of 354 families are entirely `Partial`**, so they legitimately paste to
+  nothing and produce no file. That is a skip, not a failure — a completeness
+  check that cannot tell the difference will refuse to build the buckets.
+- `--parallel 1` packs every family into **one** LPTScheduler bin, so a single
+  `die` used to lose all 354 (Orthomyxoviridae sorts first, being largest).
+  Failures are now isolated and listed before the bucketing stage, which
+  otherwise surfaces them as an opaque mash error naming an innocent family.
+- `--skip-existing` reuses family sketches already in the output directory, so a
+  run that fails late can be resumed without repeating the expensive pastes.
+- A family literally named **`null`** (38 genomes) is real upstream data: the API
+  returns the *string* `'null'` as `family` for those records.
+- 14.9 GB of family sketches fits the script's 20 GB bucket ceiling, so the
+  result is a single `all-viral-01.msh` — `deploy.cfg`'s references to
+  `all-viral-02/03.msh` name files that do not exist in this build or the 2024 one.
 
 ### BV-BRC-Go-SDK
 
@@ -768,13 +1133,40 @@ eutils (`sra`) — the JSONRPC/Shock/login calls previously sent Go's default
   `-buildvcs=false` also denies the `debug.ReadBuildInfo` fallback its VCS data,
   so such a binary reports `bvbrc-cli-go/unknown` — right product, no version.
   Use `make` (or a build script) for anything whose UA matters.
-- **`go install …/cmd/p3-ls@v2.0.x` does not work at all** (measured
-  2026-08-18, corrects an earlier claim here that it was fine): `go.mod` is
-  `module github.com/BV-BRC/BV-BRC-Go-SDK` with **no `/v2` suffix**, so the
-  proxy rejects every v2 tag — `module contains a go.mod file, so module path
-  must match major version ("…/v2")`. `@latest` degrades to a pseudo-version
-  (`v0.0.0-<date>-<hash>`). Nothing distributes this way today; fixing it means
-  renaming the module to `…/v2` (rewrites every import path) or a v1 line.
+- **The module path ends in `/v2`, and that is load-bearing** (renamed
+  2026-10-20, PR https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/17). Every
+  import is `github.com/BV-BRC/BV-BRC-Go-SDK/v2/<package>`. Before the rename
+  `go.mod` declared the path *without* a major-version suffix while every tag
+  was v2.x, so the proxy rejected all of them and **a plain `go get` silently
+  resolved to a pseudo-version of `main`** rather than the release — worse
+  than an error, since the caller believes they pinned it. Retagging could
+  never have fixed that: the only versions an unsuffixed path accepts are v0
+  and v1, and the `+incompatible` escape hatch exists only for repos with no
+  `go.mod`.
+  - **v2.0.17 is the first release that can be named from Go**, verified:
+    `go get github.com/BV-BRC/BV-BRC-Go-SDK/v2@v2.0.17` resolves, and so does
+    `go install …/v2/cmd/p3-ls@v2.0.17`. **Do not check this with the proxy's
+    `@v/list`** — it happily echoes v2.0.0–v2.0.16 under the `/v2` path even
+    though none of them resolve. Only a per-version fetch tells the truth:
+    `…/v2/@v/v2.0.17.info` → 200, `…/v2/@v/v2.0.16.info` → 404
+    `go.mod has non-.../v2 module path`. **Tags v2.0.1–v2.0.16 are permanently
+    unusable** — the proxy objects to the `go.mod` recorded *inside* each tag,
+    so nothing but re-tagging would change it, and that republishes conda
+    packages over themselves. Leave them.
+  - **A release tag must be cut from a commit whose `go.mod` already says
+    `/v2`**, or the tag is dead on arrival exactly as the old ones are.
+  - **Five files name the version package by its full import path** — the
+    `Makefile`'s `VERSION_PKG` and four `build-*.sh` `LDFLAGS_VERSION` — and
+    **the linker silently ignores an `-X` whose path does not resolve**. Miss
+    one in a future rename and that platform's binaries build fine, archive at
+    the right size, and report `unknown` from both `--version` and the UA.
+    `TestVersionStampPathTracksTheModulePath` (`packaging_test.go`) derives the
+    expected path from `go.mod` and guards all five.
+  - A `go install` build takes the `debug.ReadBuildInfo` path, where
+    `Main.Version` carries a leading `v`; `version.normalizeModuleVersion`
+    strips it so the same release does not report `2.0.17` from the archive and
+    `v2.0.17` from `go install` — i.e. two different User-Agents for identical
+    code.
 - **Check a shipped binary** without running it: `go version -m <binary> | grep
   ldflags` prints the `-X …/version.Version=<v>` it was built with. Confirmed on
   the v2.0.13 release tarball (`-s -w -X …version.Version=2.0.13`) — v2.0.13 is
@@ -826,16 +1218,25 @@ cd modules/BV-BRC-Go-SDK
 git fetch upstream main && git merge --ff-only upstream/main   # tag a commit that is on main
 export PATH=/home/olson/P3/go-1.25.6/go/bin:$PATH
 go build -buildvcs=false ./... && go test ./...                # CI does NOT run tests
-git tag v2.0.16 <commit>                                       # lightweight, matching existing tags
-git push https://github.com/BV-BRC/BV-BRC-Go-SDK.git v2.0.16
+git tag v2.0.18 <commit>                                       # lightweight, matching existing tags
+git push https://github.com/BV-BRC/BV-BRC-Go-SDK.git v2.0.18
 gh run list --repo BV-BRC/BV-BRC-Go-SDK --workflow release.yml --limit 3
 ```
 
 - **Tag BV-BRC, not the fork** (changed 2026-08-18; the fork's workflow is
-  disabled — see the intro above). Next release is **v2.0.16**. Latest so far:
-  **v2.0.15** (2026-08-19, `0e377f3`, the `rast-*` port — first release with all
-  138 tools); before it v2.0.14 (2026-08-18, `--version`/`--debug-http`) and
-  v2.0.13 (2026-08-13, the last one cut from the fork).
+  disabled — see the intro above). Newest release is **v2.0.17**
+  (2026-10-20, `8c63aca` — the `/v2` module rename plus the two
+  `sra_cache_service` prerequisites; **the first release installable with
+  `go get`/`go install`**); next is **v2.0.18**. Before it: v2.0.16
+  (2026-09-02), v2.0.15 (2026-08-19, `0e377f3`, the `rast-*` port — first
+  release with all 138 tools), v2.0.14 (2026-08-18, `--version`/`--debug-http`)
+  and v2.0.13 (2026-08-13, the last one cut from the fork).
+  **v2.0.17 is incomplete in two ways worth knowing:** it has **13 assets, not
+  16** (the three `.sif`s — see the Apptainer breakage below), and at the time
+  of writing its conda upload had not finished, so
+  `api.anaconda.org/package/bv-brc/bvbrc-cli` still reported 2.0.16. Check
+  anaconda before telling anyone conda has it.
+  **Check `gh release list` rather than this line** — it has been stale twice.
 - **Verify `main` actually has the work before tagging — "merged" can be a
   lie with stacked PRs.** A stack of PRs each based on the previous branch
   relies on GitHub retargeting each one to `main` as its base merges. If the
@@ -866,9 +1267,11 @@ gh run list --repo BV-BRC/BV-BRC-Go-SDK --workflow release.yml --limit 3
   wrapping a release around an already-pushed tag fires nothing either. The
   workflow file is read from the **tagged commit**, so tagging a commit older
   than `release.yml` runs nothing.
-- **Tags here are lightweight** by convention (`git cat-file -t v2.0.11` →
-  `commit`). Keep matching; nothing depends on annotation, but consistency
-  makes `git describe` behave predictably.
+- **Tags here are *mostly* lightweight** — v2.0.13/14/15/17 are `commit`, but
+  **v2.0.16 is annotated** (`git cat-file -t` → `tag`; the remote shows a
+  peeled `v2.0.16^{}`). So the convention is real but already broken once;
+  keep cutting lightweight ones for consistency, and don't write a check that
+  assumes all tags peel the same way. Nothing depends on annotation.
 - **Job graph (6 jobs):** `build-linux` / `build-macos` / `build-windows` run in
   parallel → `release` (needs all three; sha256sums; uploads assets) →
   `build-apptainer` (matrix ubuntu-22 / ubuntu-24 / rocky-9, reuses the
@@ -878,11 +1281,23 @@ gh run list --repo BV-BRC/BV-BRC-Go-SDK --workflow release.yml --limit 3
   requires one. The `release` job therefore creates it as a **prerelease** if
   absent, and force-publishes (`--draft=false`) an existing draft: draft releases
   do not serve `releases/download/<tag>/`, which conda's checksum fetch and the
-  recipe's `source: url:` both read (they 404 against a draft). **Check the flag
-  rather than assuming it:** for v2.0.13 the create path ran (`gh release create
-  … --prerelease` printed the release URL) yet the result came out
-  `isPrerelease: false, isDraft: false` — a full release needing no manual flip.
-  Unexplained; `gh release view <tag> --json isDraft,isPrerelease` settles it.
+  recipe's `source: url:` both read (they 404 against a draft). **A prerelease
+  does serve downloads**, so conda and the archives work either way — what it
+  costs you is the **`Latest` label**, which stays on the previous version.
+  - **Expect to flip it by hand.** v2.0.17 came out `isPrerelease: true,
+    isDraft: false` (2026-10-20) — i.e. `--prerelease` did exactly what it
+    says, and `gh release list` showed **v2.0.16 still labelled `Latest`**
+    until it was promoted. This corrects an earlier note here that generalised
+    from v2.0.13, which came out `isPrerelease: false` and needed no flip:
+    **v2.0.13 was the anomaly, not the rule.**
+  - **`gh release edit` silently does nothing on this workstation** — same
+    failure as `gh pr edit`. It exits 0, prints a bare `view`, and leaves the
+    flag untouched. Promote through the API instead, and *verify*:
+    ```bash
+    RID=$(gh api repos/BV-BRC/BV-BRC-Go-SDK/releases/tags/v2.0.17 --jq .id)
+    gh api -X PATCH repos/BV-BRC/BV-BRC-Go-SDK/releases/$RID -F prerelease=false
+    gh release view v2.0.17 --json isDraft,isPrerelease   # settles it
+    ```
 - **Gotcha — this workstation's SSH to GitHub is broken** (`Permission denied
   (publickey)`, no `ssh-askpass`). Push with the explicit HTTPS URL as above so
   `gh`'s credential helper supplies the token; `git push origin v…` over SSH
@@ -956,6 +1371,27 @@ and is what conda's `license_file` resolves to. The conda recipe and
 dir (so `build.sh` finds `bin/`), and the Apptainer def extracts with
 `--strip-components=1` into `/usr/local`.
 
+**Three installers ship alongside the archives and are easy to miss** — they
+predate 2.0.16 but went undocumented in the README until 2026-10-20
+(BV-BRC/BV-BRC-Go-SDK#16):
+
+| asset | built by | installs to |
+|---|---|---|
+| `bvbrc-cli-<ver>-intel.pkg` | `build-macos-pkg.sh`, macOS runner (`pkgbuild`/`productbuild` need macOS) | `/usr/local/bin` |
+| `bvbrc-cli-<ver>-apple-silicon.pkg` | same | `/usr/local/bin` |
+| `bvbrc-cli-<ver>-windows-amd64-setup.exe` | NSIS, Windows runner | `C:\Program Files\BVBRC`, **appends to the system `PATH`**, writes an uninstaller + Add/Remove Programs entry |
+
+**None is signed** — the release workflow names the macOS job "unsigned .pkg"
+outright — so Finder blocks the `.pkg` (use `sudo installer -pkg … -target /`)
+and SmartScreen warns on the setup.exe. **There is no ARM64 Windows
+installer**; Windows-on-ARM must use the zip. There is **no Windows conda
+package** either.
+
+**Do not tell anyone to copy the tools into `C:\Windows\System32`** — the
+README said so until 2026-10-20. It puts 138 executables in a system directory
+where they cannot be upgraded or removed as a unit and can shadow system
+commands.
+
 #### Apptainer / Singularity SIF images
 
 `build-apptainer.sh <distro>` (`ubuntu-22`|`ubuntu-24`|`rocky-9`) builds a `.sif`
@@ -970,6 +1406,24 @@ fakeroot configured, run `APPTAINER_BUILD_ARGS= sudo -E ./build-apptainer.sh <di
 The `build-apptainer` matrix job in `release.yml` (needs: `release`) builds all
 three on a tag push and attaches `bvbrc-cli-<ver>-<distro>-amd64.sif` to the
 GitHub Release; Apptainer is installed via `eWaterCycle/setup-apptainer`.
+
+- **BROKEN as of 2026-10-20 — all three SIF jobs fail, and it is runner rot,
+  not anything in this repo.** `setup-apptainer@v2` installs the apptainer
+  **1.3.6** `.deb`, which `Depends: libfuse3-3 (>= 3.2.3)`; GitHub has rolled
+  `ubuntu-latest` to an image where that package is **not installable**, so
+  `apt-get install` exits 100 at the *Install Apptainer* step and both later
+  steps skip. Identical config (`runs-on: ubuntu-latest`) succeeded for
+  v2.0.16 on 2026-09-02 — nothing in the workflow changed, the image did.
+- **Consequence: a release now ships 13 assets, not 16** — the three `.sif`
+  files are simply absent. v2.0.17 is the first release missing them. The
+  other seven jobs are unaffected, so the release, archives, installers and
+  conda package are all fine; it is only the SIFs.
+- Fix is to stop tracking `latest`: pin that job to `runs-on: ubuntu-22.04`
+  (or bump `apptainer-version` to one whose `.deb` depends on a fuse3 package
+  the current image has). **A rerun of an old run will not pick the fix up** —
+  the workflow is read from the tagged commit, so the fix only takes effect
+  for the *next* tag; to backfill a release's SIFs, build them locally with
+  `build-apptainer.sh` and `gh release upload`.
 
 #### The `rast-*` family (genome_annotation port, 2026-08)
 
@@ -1185,13 +1639,97 @@ All 49 ERRORs are environmental (fixture output paths owned by other users,
 unbuilt Perl wrappers for new cmds, fixture typos) — not CLI bugs. See
 `PORT_STATUS.md` for a full breakdown.
 
-#### Data-query options & cursor pagination
+#### Pagination is cursor-only (2026-10-14)
 
-`api` supports cursor-based pagination (`QueryWithCursor`/`StreamWithCursor`/
-`QueryCallbackWithCursor`, driven by the `X-Cursor-Mark` header) exposed via the
-`--cursor` flag on `p3-all-*`/`p3-get-*`. Common `DataOptions` (in
-`internal/cli/options.go`) also include `--max-retries`, `--verbose` (retry
-messages to stderr), `--sort` (prefix `-` for descending), and `--user-agent`.
+**Offset pagination is gone from the SDK** — PR
+https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/14, merged 2026-10-14 (`59554b3`).
+`Query`, `QueryCallback` and `Stream` all page by `X-Cursor-Mark` through one
+unexported `cursorPages` helper in `api/client.go`;
+`QueryWithCursor`/`StreamWithCursor`/`QueryCallbackWithCursor` are **deprecated
+aliases**, and `--cursor` is a **hidden deprecated no-op** kept only so existing
+scripts keep running. Don't reintroduce a mode switch:
+`TestNoCommandUsesOffsetPagination` (`internal/cliroot/`) fails the build on
+`dataOpts.Cursor`, a `*WithCursor` call, a `limit(n,offset)` body, or the stale
+`alpha.bv-brc.org` advice.
+
+- **Why:** `start=N&rows=M` makes every Solr shard collect and rank `N+M` docs
+  and the aggregator merge them — work proportional to the offset, repeated per
+  page and discarded, paid by the shared tier. One page at offset 1,000,000 on
+  `genome_feature` measured **96.7 s** (QTime 96,573 ms) vs ~5 s for a cursor
+  page at any depth. It is also *less correct*: without a total order, shard
+  ranking of equal docs is not stable between requests, so offset paging can
+  repeat or skip rows on a static index.
+- **Cursor is available everywhere** — verified on all 10 cores the SDK
+  addresses × both `www.bv-brc.org/api` and `p3.theseed.org/services/data_api`
+  (20/20 returned `X-Cursor-Mark`), and it is correct under a user-supplied
+  **non-unique sort** (the API appends a uniqueKey tiebreaker). The old
+  "requires alpha.bv-brc.org" advice was stale and is deleted.
+- **The API caps a page at 25,000 rows** regardless of what `limit()` asks for,
+  so `DefaultChunkSize` is already optimal — there is no page-size lever.
+  `Content-Range: items <start>-<end>/<total>` gives the per-page count
+  (`end-start`) and the grand total on every response.
+- **The cursor mark is percent-encoded on the wire** (`api/query.go`). The API
+  percent-decodes the request body and a base64 mark can contain `+`, `/`, `=`.
+  Raw works today only because the decoder does not apply the form rule that
+  `+` means space — not a property we control. `*` → `%2A` is accepted.
+- **`q.Cursor(mark)` now actually works:** `cursorPages` starts from a
+  caller-supplied mark instead of always `*`. The setter predated this and no
+  loop read it. That is the hook a resumable dump needs — see
+  `PLAN-go-cli-resumable-downloads.md`.
+- **One user-visible change:** a query with no explicit `--sort` now comes back
+  in uniqueKey order rather than Solr's internal order. Deterministic where it
+  was not, but any golden-output comparison sees a one-time reordering.
+
+Common `DataOptions` (in `internal/cli/options.go`) also include
+`--max-retries`, `--verbose` (retry messages to stderr), `--sort` (prefix `-`
+for descending), and `--user-agent`.
+
+#### Resumable bulk dumps — the 12 whole-core commands (2026-10-14)
+
+A multi-hour dump used to die whole. The ten `p3-all-*` plus
+`p3-find-serology-data` / `p3-find-surveillance-data` now take **`--resume`**
+(and `--state FILE`), checkpointing to a sidecar JSON next to the output so the
+same command re-run continues from the last committed page. Branch
+`feature/resumable-dumps` (`1949032`, `389392f`, `bf8a29b`) — **still not pushed
+or merged** (re-checked 2026-10-20). Phase 1 of
+`PLAN-go-cli-resumable-downloads.md`; Phase 2 (the 26 key-driven `p3-get-*`) is
+not started. **It now predates the `/v2` module rename**, so its `go.mod` still
+declares the unsuffixed path and every import lacks `/v2` — rebase onto `main`
+before doing anything with it, or the build is against a module that no longer
+exists under that name.
+
+- **The ordering is the whole correctness argument, and it is easy to get
+  backwards:** rows → `TabWriter.Flush` → `File.Sync` → checkpoint.
+  `TabWriter` buffers, so a cursor mark recorded at callback time can name a
+  page whose rows are still in userspace. Checkpointing first loses them
+  **silently and permanently** — the mark has advanced past them, so nothing
+  will ever re-fetch them. `cli.Dump.CommitPage` is the only writer of a
+  checkpoint, so that ordering exists in exactly one place.
+- **The reverse crash is cheap and is handled:** output longer than the
+  recorded `bytes` means a page was written but never committed → truncate back
+  and re-fetch it. **Shorter** → refuse; committed rows have gone missing and
+  appending would leave a hole.
+- **`--resume` requires `-o FILE`** (a pipe cannot be rolled back, and its
+  consumer has already seen the rows), and the checkpoint carries a
+  **signature** over endpoint/core/RQL/columns — resuming with a changed query
+  is refused rather than interleaving two result sets. `--limit N` is charged
+  against rows already written, so it means N rows *in total*.
+- **The walk does not end on the last data page.** The API keeps handing back a
+  fresh mark and signals exhaustion only with an **empty page**, so a complete
+  dump commits one extra zero-row page. Hence `CommitPage` records the `done`
+  sentinel whenever the mark fails to advance — otherwise a crash in the window
+  before `Finish` would resume onto a mark that re-delivers the final page.
+- **`TestEveryDataCommandSupportsResume`** (`internal/cliroot/`) is the guard,
+  same family as `TestEveryCommandDeclaresAProduct`: anything streaming through
+  `QueryCallback` must carry the seam or be listed in `notYetResumable` with a
+  reason. That list (18 names) is also Phase 2's work queue.
+- Verified live on a 121,293-row `p3-all-genomes` dump: SIGKILL after two
+  committed pages → resume → **byte-identical** output, no duplicate ids;
+  garbage appended past the checkpoint rolled back; completed re-run a no-op.
+- Same PR: **`--timeout DURATION`** on every data command (the 30 s HTTP
+  timeout was unreachable before) and `DefaultMaxRetries` **3 → 5**.
+- **`p3-cursor-dump.sh`** (in `modules/`) remains the shell prototype the design
+  came from; the Go path now covers the same ground for these 12 commands.
 
 ### p3_msa (MSA app)
 
@@ -1224,6 +1762,121 @@ Remotes: `origin` = `olsonanl/bvbrc_metacats` (fork), `upstream` = `BV-BRC/bvbrc
   `filename_whitespace_issue_675.json` + `auto_groups_formfill.json` only needed
   `output_path` repointed (their inputs were already accessible). See "App QA
   fixtures" under Testing.
+
+### sars2_assembly (SARS-CoV-2 assembly + ARTIC primer schemes)
+
+Three recipes, selected by `determine_recipe` in `service-scripts/App-SARS2Assembly.pl`.
+**`onecodex` is the default for *both* illumina and nanopore** (`:54-55`) and is the only
+one that receives `primers` / `primer_version` (`:390-404`) — `artic-nanopore` uses a
+hardcoded `nCoV-2019/V3`. "onecodex" is a recipe name, not an API: it is a local
+reimplementation of One Codex's `covid19_call_variants.sh`. Chain is
+`seqtk` → `minimap2` → `samtools view/sort` → **`ivar trim`** → `samtools mpileup` →
+`ivar variants`/`consensus` → `mafft`. **bcftools is not used by onecodex at all** (only
+by `sars2-cdc-illumina.pl`); `sars2-cdc-nanopore.pl` clips with `bamclipper.sh` + a
+**BEDPE**, not ivar.
+
+- **The primer schemes are a separate repo.** `sars2_assembly/primer-schemes/` is an
+  *untracked clone* of `BV-BRC/primer-schemes`, and `Makefile:73-78` does
+  `rm -rf primer-schemes && git clone … HEAD`. **A local edit there is destroyed by the
+  next `make artic_schemes` — it must be pushed.** `PRIMER_SCHEMES_COMMIT_HASH = HEAD`
+  pins nothing.
+- **Two copies on disk.** The scratch clone, and the deployed
+  `lib/Bio/P3/SARS2Assembly/primer_schemes` that the code actually reads (untracked build
+  artifact, 0 tracked files). The target has no dependencies, so it only rebuilds if the
+  directory is absent — `rm -rf` it to refresh. `cp -r` **dereferences** the
+  `SARS-CoV-2 -> nCoV-2019` symlink, so the deployed tree has *both* as real directories
+  and the manifest's `"path": "SARS-CoV-2"` resolves. Add a new version under
+  `nCoV-2019/`; it appears under both after a build. The deployed copy here is routinely
+  **behind** the clone.
+- **Adding a scheme version needs no `sars2_assembly` change.** `primer_version` is a
+  free-form string with **no enum** (`app_specs/SARS2Assembly.json:120-131`);
+  `sars2-onecodex.pl:100-118` reads the version list, path and both filenames out of
+  `bvbrc_manifest.json`; `rewrite-primers.pl:27` globs `V*`.
+- **`$schemes->[-1]` is the default** (`sars2-onecodex.pl:113`) when no `primer_version`
+  is passed — so **append order selects the default**, and inserting rather than
+  appending silently keeps the old one.
+- **`rewrite-primers.pl` dies if a version dir has no `.scheme.bed`** (`:30-38`, tries
+  `nCoV-2019.scheme.bed` then `SARS-CoV-2.scheme.bed`), which breaks `make artic_schemes`
+  for *every* version, not just the new one. Convention is 7-col `primer.bed` (with
+  sequence) + 6-col `scheme.bed`. Its `ARTIC-V*.bed` output has **zero consumers**
+  (`artic_bed`/`artic_reference` are exported but never called).
+- **`sars2-onecodex.pl:135` discards the bed's strand column** and re-derives it from the
+  primer *name*: `$x[3] =~ m/LEFT|(F$)/ ? "+" : "-"`, keeping only cols 1-4 plus score 60.
+  The `(F$)` branch exists for **swift**, whose primers are named `…M1F`/`…M1R` and whose
+  bed has only 4 columns. A scheme whose names defeat this regex gets trimmed on the wrong
+  end, silently — hence the test that pins it.
+- **The v5.4.2 spike-ins are coordinate-duplicates.** Each of the five sits at exactly the
+  same start/end/strand/pool as an existing primer (alternative oligos for the same
+  binding site, 1 substitution each). So **v5.3.2 and v5.4.2 present an identical set of
+  trim intervals**, and a read-through test *on the reference* cannot distinguish them —
+  it passes with either, or with garbage sequences, since sequences are discarded at
+  `:135`. Two checks do have discriminating power: **primer sequence vs the reference at
+  its own coordinates** (v5.3.2 has exactly 1 intentional mismatch, v5.4.2 exactly 6), and
+  an end-to-end run **on a drifted template with an annealing model** (below).
+- **The dropout test is what shows v5.4.2 doing its job**, and it needs an annealing
+  model: a generator that amplifies every amplicon unconditionally cannot tell a scheme
+  that binds the template from one that does not. With one, each of the five drift
+  substitutions costs v5.3.2 a whole amplicon — a **307/235/198/270 bp** hole for
+  amplicons 11/69/70/74, exactly the span the neighbours' inserts do not reach — and
+  v5.4.2 closes every one. Under both annealing rules tried, v5.4.2's dropout set is a
+  **subset** of v5.3.2's in every scenario and empty in all five single-mutation ones.
+  Only amplicons 11 and 74 have **3'-proximal** substitutions (4 nt from the oligo's 3'
+  end, i.e. extension-blocking); 69 and 70 are 13–21 nt in, where the real effect is Tm
+  depression, so whether they count as "dropouts" depends on the model — say which model
+  a claim rests on.
+- **Amplicon 69's two spike-ins are alternates for two *different* mutations**, not a
+  pair: `_69_RIGHT_1` answers 21710, `_69_RIGHT_2` answers 21717, and neither carries
+  both. A test genome with all five substitutions at once is therefore a **chimera no
+  lineage carries** — it matches no amplicon-69 oligo in *either* scheme and reports a
+  false failure of v5.4.2. Use one scenario per independent mutation
+  (`t/data/dropout-scenarios.tsv`); the all-at-once fixture is fine only for the
+  variant-*recovery* test, which amplifies unconditionally.
+- **Tests (added 2026-10, the module's first).**
+  `primer-schemes/tests/validate_schemes.py` (63 checks: md5s, sequence↔coordinate with
+  the intentional-mismatch set pinned *exactly*, bed structure, amplicon topology/tiling,
+  the version delta, and that every manifest path exists). In `sars2_assembly`:
+  `t/client-tests/primer-schemes.t` (22), `t/client-tests/primer-dropout-model.t` (40,
+  hermetic — the annealing/rescue matrix, no bioinformatics tools needed),
+  `t/server-tests/primer-dropout.t` (20, the holes end to end) and
+  `t/server-tests/ivar-trim-roundtrip.t` (16,
+  skips without minimap2/samtools/ivar). **`CLIENT_TESTS`/`SERVER_TESTS` were declared but
+  nothing in `Makefile.common` consumes them** — `make test` had no rule at all until the
+  targets were added; they use `$(KB_RUNTIME)/bin/perl`, since `DEPLOY_RUNTIME`
+  (`/kb/runtime`) exists only in a deployment.
+  **All of this is merged, not local** (re-checked 2026-10-20): the tests and the
+  `make test` targets landed on `feature/primer-scheme-tests` (`d0f1425`, `2d7137e`)
+  and merged to `sars2_assembly` master as `553b3cb` (PR #3); the v5.4.2 scheme is a
+  **single** commit `78e605f` on `primer-schemes` `feature/artic-v5.4.2`, merged as
+  `b7f39b3` (PR #3 there). An earlier note here saying it was unpushed was wrong.
+- **…but none of it is in the working tree, which is the confusing part.**
+  `sars2_assembly` is checked out on `fix/stale-samtools-path-pin` (`52fa43e`, pushed,
+  **not** merged), which predates the merge — so **there is no `t/` directory on disk
+  at all** and that branch's `Makefile` has no `test` target. All line numbers in this
+  section are **master's**; `52fa43e` inserted a comment block that shifts
+  `sars2-onecodex.pl`'s cited lines by +7 (`:46`→`:53`, `:113`→`:120`, `:135`→`:142`).
+- **Two traps found writing those tests.** `ivar trim` adds an **`XA:i:<n>` tag holding
+  the matched primer's index in the bed**, which shifts whenever rows are inserted (720 of
+  815 reads changed between v5.3.2 and v5.4.2) — so a scheme-equivalence assertion must
+  compare **POS/CIGAR**, not whole records. And **`ivar consensus` output is not indexed by
+  reference coordinate**, so diffing it positionally against the reference is meaningless
+  (it reported 14,458 phantom mismatches); walk the pileup instead.
+- **A generator that splits primer names on `_` positionally is wrong.** Scheme names
+  contain underscores (`SARS-CoV-2_400_11_RIGHT_0` → `tokens[1]` is `400` for every
+  primer), and alt suffixes (`_0`/`_1`/`_alt1`) collide in a dict keyed by direction,
+  silently dropping the alts. Anchor on `_LEFT`/`_RIGHT`:
+  `^(.+)_(\d+)_(LEFT|RIGHT)(?:_(\S+))?$`. Reads must also tile the insert — 150 bp off each
+  end of a 400 bp amplicon leaves the middle uncovered (20,213 of 29,903 positions).
+- **A mutation under a primer is recoverable from the neighbouring amplicon**, which is
+  what the tiling overlap buys: verified for all five v5.4.2 target substitutions
+  (3564→amp12, 21710/21717→amp70, 21940→amp71, 22769→amp73).
+- **Known wart (not fixed):** `sars2-onecodex.pl:46` is
+  `grep { $_->{name} = "SARS-CoV-2" }` — an **assignment, not a comparison**. It
+  overwrites every organism's name and returns the first unconditionally. Harmless with
+  one organism; silently wrong the moment a second is added.
+- **Manifest is stale for non-ARTIC kits:** `midnight/V2`, `midnight/V3` and
+  `qiagen/V1+BoosterA` exist in the repo but are unlisted. Registering them would move
+  those kits' defaults (last-wins), and `qiagen/V1+BoosterA` ships
+  `qiagen.booster.scheme.bed`/`qiagen.booster.fasta` with no `.reference.fasta`.
 
 ### bvbrc_lowvan (LowVan viral annotation)
 
@@ -1295,13 +1948,39 @@ the upstream `CLAUDE.md` documents a different one — upstream issue #25.)
 - **`--min-contig-bit` and `--fallback-viral-taxon` are exposed end to end** (the wrapper
   side of the `-vtax` work above). Chain: `p3-submit-genome-annotation`
   `--lowvan-min-contig-bit` / `--lowvan-fallback-viral-taxon` (Perl **and** Go) →
-  `lowvan_min_contig_bit` / `lowvan_fallback_viral_taxon`, declared in **both**
-  `GenomeAnnotation.json` and `GenomeAnnotationGenbank.json` (p3_genome_annotation branch
-  `feature/lowvan-classification-params`) → `call_features_lowvan` → the wrapper.
-  `min_contig_bit` has **no default at any layer above `annotate_by_viral_pssm.pl -mcb
-  150`**, deliberately — a copy would be a third place to drift (cf. the `-min` gotcha
-  below). `ComprehensiveGenomeAnalysis.json` carries the lowvan min/max pair and did
-  **not** get these two.
+  `lowvan_min_contig_bit` / `lowvan_fallback_viral_taxon`, declared in **all three** of
+  `GenomeAnnotation.json`, `GenomeAnnotationGenbank.json` and
+  `ComprehensiveGenomeAnalysis.json` → `call_features_lowvan` → the wrapper.
+  (An earlier note here said CGA did **not** get these two; it did.) `min_contig_bit`
+  has **no default at any layer above `annotate_by_viral_pssm.pl -mcb 150`**,
+  deliberately — a copy would be a third place to drift (cf. the `-min` gotcha below).
+  - **The spec half is merged; the two CLI halves lagged it by two months.** The
+    declarations went into **BV-BRC `p3_genome_annotation` master** via PRs
+    [#26](https://github.com/BV-BRC/p3_genome_annotation/pull/26),
+    [#27](https://github.com/BV-BRC/p3_genome_annotation/pull/27) and
+    [#28](https://github.com/BV-BRC/p3_genome_annotation/pull/28) (commit `f07805b`) —
+    so `grep`ping the local `feature/lowvan-classification-params` branch understates
+    where they live. Only `43728b0` (the LowVan QA test set) is still unmerged there.
+    Meanwhile both CLI halves sat **uncommitted** in their working trees from
+    2026-08-21 — the Perl one on the unrelated `feature/http-diagnostics-cloudflare`
+    branch — until 2026-10-14, when both were committed and **merged**:
+    [p3_cli#23](https://github.com/BV-BRC/p3_cli/pull/23) (`a152279`) and
+    [BV-BRC-Go-SDK#15](https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/15)
+    (`0e6c61c`). **All three layers of the chain are now in master/main**; the
+    only thing left is the `p3x-load-app-specs` run below.
+    **Watch the base when branching in `p3_cli`:** local `master` was one commit ahead
+    of `BV-BRC/p3_cli` master (an unpushed `p3-qstat` commit), so a branch cut from it
+    silently carries that into the PR — rebase `--onto upstream/master`.
+    Parity is verified by `--dry-run` on both sides: the bit score is sent only when
+    the flag was set, and the fallback only when true, **emitted as `1`, not a JSON
+    `true`** — Perl's `? (… => 1) : ()` is the reference and Go matches it, even though
+    the spec declares the parameter `bool`.
+  - **Still blocked on the same thing, re-measured 2026-10-14:** `enumerate_apps` shows
+    the scheduler's cached `Application.spec` carries **no `lowvan_*` parameters at
+    all** for `GenomeAnnotation` (25 params) or `GenomeAnnotationGenbank` (23) — not
+    even the older min/max contig-length pair. So a `--preflight` submission still drops
+    these silently, `submit-validation.sh` still refuses to run, and nothing has been
+    submitted. Unblocking is a `p3x-load-app-specs` run against the current container.
 - **`submit-validation.sh`** (module top level) submits N of the 5000 rows of
   `~/BV-BRC/jdavis_lowvan/failure-analysis/validation-set-5000.tsv` for reannotation,
   ledgering accession → job id so a run resumes and the results join back. It **refuses to
@@ -1434,3 +2113,127 @@ column **`[0]`** of each row. All strip a leading `cellular…` rank.
   `taxonomy` field by exact-matching its `;`-separated tokens against the 34 valid names —
   no need to re-read the source `.gb`. Confirmed: the influenza GTO above yields
   `['Alphainfluenzavirus']`.
+
+### sra_cache_service (SRA precaching + toolkit access — new, Go-native)
+
+New service: SRA `.sra`/metadata precaching with a client-side dump toolkit,
+drop-in compatible with `p3-sra`. Design in **`PLAN-sra-precache-service.md`**
+(root of this repo); phased build plan in
+**`PLAN-sra-cache-service-implementation.md`**. **This is the first Go-native
+JSONRPC *server* in the tree** — every other Go JSONRPC usage anywhere in this
+codebase is client-side. Upstream repo `https://github.com/BV-BRC/sra_cache_service`
+(created 2026-09-28).
+
+- **Status (re-verified 2026-10-20): all 9 of the plan's 10 phases are
+  implemented, committed, and pushed — none merged yet, and Phase 10 (real
+  production deployment) hasn't started.** Three pushed, unmerged branches, not yet in
+  `core-modules`, no `[SRACache]` `deploy.cfg` stanza anywhere real:
+  `feature/jsonrpc-dispatcher` (Phases 2-4), `feature/catalog-cache`
+  (Phase 5), and `integrate/phases-2-5` (both merged together, plus Phases
+  6-9 on top — **this is the branch with everything**). **The working tree
+  with all 9 phases is the git worktree at `modules/sra_cache_service-integrated`,
+  not `modules/sra_cache_service`** (that plain checkout only has Phase 1,
+  on `main`, already merged/pushed there). Resume work in `-integrated`.
+- **The SDK dependency is an ordinary released pin as of 2026-10-20** — the
+  local-path `replace` against `modules/BV-BRC-Go-SDK-sra-prereqs` is gone,
+  and `go.mod` requires `github.com/BV-BRC/BV-BRC-Go-SDK/v2 v2.0.17`. Note
+  the **`/v2`**: the SDK module was renamed, so every import carries it (see
+  the Go SDK section). What is actually imported is `sra`, `auth` and
+  `version` — **not `p3auth`**, which is available but unwired (see the
+  `NoopValidator` bullet below). The two
+  prerequisites merged as
+  [#18](https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/18) (`sra.Record` gains
+  Platform/LibraryLayout/Runs, plus `LookupAll` fixing a first-match bug that
+  broke SRP/study expansion) and
+  [#19](https://github.com/BV-BRC/BV-BRC-Go-SDK/pull/19) (`p3auth` promoted
+  from `Workspace/go/internal/` to a public package). The `-sra-prereqs`
+  worktree is now spent — nothing depends on it.
+- **`main.go` still uses `NoopValidator`, not real `p3auth`** — every token
+  is rejected unconditionally, so **`start_precache` (`AuthRequired`) cannot
+  succeed against any instance of this service, with any token real or
+  fake.** Expected, not a bug — don't chase a "real token isn't working"
+  report without checking this first. Test auth-gated paths against a local
+  `jsonrpc.Server` + fake accepting `Validator` instead (the pattern every
+  Phase 6-9 test suite already uses).
+  **What changed 2026-10-20 is *why*:** this was blocked on `p3auth` being
+  unavailable (first `internal/` in Workspace, then on an unmerged branch).
+  It is neither now — the package is public, released and pinned here. The
+  remaining work is the wiring plus verification against a real token, which
+  is Phase 10 and wants a live service.
+- **Cross-module Go boundary, hit building the CLIs (Phases 8-9):**
+  `sra_cache_service` and `BV-BRC-Go-SDK` are separate Go modules, so
+  `BV-BRC-Go-SDK/internal/*` (`httpdiag`, `cli`, `cliroot`) is **not
+  importable** from here — only genuinely public top-level SDK packages
+  (`version`, `sra`, `p3auth`, `auth`, `api`, `appservice`,
+  `genomeannotation`, `workspace`) are. `p3-sra-precache`/`p3-sra-dump`
+  reimplement a minimal local `--debug-http`/`--version` rather than
+  importing the SDK's copies — deliberate, not a shortcut (and the
+  Cloudflare-1010 scenario `httpdiag` exists for doesn't apply to calls
+  against this internal service anyway). `auth.GetToken()`/
+  `auth.RequireToken()` **are** reused directly, since `auth` is genuinely
+  public. Worth remembering for any future new Go module in this tree that
+  wants SDK CLI glue.
+- **`modernc.org/sqlite`'s DSN convention is nothing like
+  `mattn/go-sqlite3`'s** (no other Go+sqlite usage exists anywhere else in
+  this tree to compare against): pragmas are `?_pragma=name(value)` repeated
+  query params, not a single `?key=value` string, and the driver name is
+  `"sqlite"`, not `"sqlite3"`. `_pragma=busy_timeout(...)` is silently
+  reordered to run first regardless of query-string position.
+- **Real `prefetch` v3.1.0 CLI, confirmed live, not from the Python
+  wrapper**: `prefetch --output-directory <dir> <accession>` — `-p` is
+  `--progress`, not a positional marker, and `-o` is genuinely ambiguous in
+  `prefetch`'s own `--help` (bound to both `--order` and `--output-file`).
+  Exit 3 + `failed to resolve accession` stderr for a bad id (matches
+  `sra_tools.py`'s proven regex); exit 0 + `<dir>/<acc>/<acc>.sra` on
+  success.
+- **NCBI eutils won't resolve a bare SRP (study) accession alone** —
+  `id=SRP393881` by itself returns "ID list is empty" even though the same
+  SRP resolves fine when it rides in a batch alongside a sibling SRR/SRX
+  from the same study. `get_metadata` treats a lone SRP as ordinary
+  "missing," verified to match `p3-sra.py`'s own behavior exactly (both
+  return nothing for a solo SRP query) — not a bug in either tool.
+- **The JSONRPC error envelope has no `data` key on the wire** — despite an
+  earlier design-doc paraphrase — confirmed against a captured production
+  error trace and the generated Perl client stub's own read logic
+  (`error`/`message` only, nothing else is ever read). Applies to every
+  JSONRPC service in this codebase, not just this one.
+- **Found (and fixed in this module's own template only) a latent bug in
+  `Workspace/service/process.Workspace.tt`:** its `set log_dir = "..."` is
+  plain text, not a real Template Toolkit directive, so `log_dir` is never
+  actually bound there and Workspace's live monit config always emits a
+  bogus root-level pidfile path. `sra_cache_service`'s own
+  `process.SRACache.tt` uses real TT assignment syntax instead. `Workspace`
+  itself was not touched — this is a live latent bug there, not yet fixed.
+- **monit does accept two `if failed port ... then restart` clauses on one
+  `check process` stanza** — verified with a real `monit -t` (monit isn't
+  installed on this host; extracted via `apt-get download monit` +
+  `dpkg-deb -x`, no root needed). Resolves an open question the design doc
+  had left unanswered.
+- **`stop_service.tt` sends `TERM`, not `QUIT`, to a Go binary** — `SIGQUIT`
+  triggers the Go runtime's default stack-dump-and-die; `main.go`'s
+  `signal.NotifyContext` already watches `SIGTERM`. (`Workspace/service/stop_service.tt`'s
+  own `download.pid`/`completion.pid` lines already used `TERM` — this
+  module copied that stanza, not the file's starman-specific `QUIT` one.)
+- **The Go port fixed a latent bug in `sra_tools.py`** found while porting
+  the `--gzip` step: gzipping an empty file list hangs `gzip` reading from
+  stdin. Fixed in the Go `p3-sra-dump`; the Python original still has it.
+- **Drop-in compatibility with `p3-sra` is verified for real, not just
+  claimed**: byte-identical fastq output (md5-matched) against real
+  `p3-sra.py` for one Illumina-paired (`SRR27422853`), one Illumina-single
+  (`SRR10075886`), and one PacBio (`DRR1113573`) accession, including the
+  `n_reads`-lying-`Statistics`-attribute edge case agreeing on both sides.
+- **Signed data-plane URLs are the only eviction-pinning mechanism** —
+  `get_sra_data`'s `catalog.Pin(accession, expires)` call *is* the lease;
+  there is no separate refcount protocol. Verified with a real test that a
+  pinned, unexpired URL survives eviction pressure that takes out an
+  unpinned entry.
+- **Next step is Phase 10**: add to `core-modules`, a real `[SRACache]`
+  `deploy.cfg` stanza, real `download-secret`/`ncbi-api-key` provisioning,
+  wire a real `p3auth.Validator` in place of `NoopValidator`, merge the three
+  pushed branches into `sra_cache_service`'s `main` (the two SDK branches are
+  already merged and released as v2.0.17 — and note the feeder branches
+  `feature/jsonrpc-dispatcher` and `feature/catalog-cache` are **ancestors of
+  `integrate/phases-2-5`**, so merging the integrate branch covers all three),
+  and the live verification checklist (real AIMD ramp behavior,
+  real token validation, one real app run against it, monit restart
+  behavior).
