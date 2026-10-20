@@ -1,6 +1,8 @@
 # App Output Estimate — ground truth from QA run 2026-07-22
 
-Companion data for **PLAN-app-output-specs.md**. This is the *observed* output
+Companion data for **PLAN-app-output-specs.md**
+(gist: https://gist.github.com/olsonanl/fc17d16f3b15672c043a41e22cc70a35).
+This is the *observed* output
 of each app, harvested by recursively listing the workspace result folder
 (`.<output_file>/`) of one **completed** job per app from
 `/home/olson/public_html/QA.2026-0722.1.html`, with the workspace object type

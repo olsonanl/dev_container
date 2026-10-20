@@ -2,6 +2,7 @@
 
 Status: **draft for review** · Author: (analysis 2026-07-22) · Companion data:
 `PLAN-app-output-specs-estimate.md`
+(gist: https://gist.github.com/olsonanl/c258ad8e36e150c675f21446271127aa)
 
 ## 1. Problem
 
